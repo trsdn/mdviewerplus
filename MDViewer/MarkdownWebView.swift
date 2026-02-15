@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 
 struct MarkdownWebView: NSViewRepresentable {
-    let document: MarkdownDocument
+    let text: String
     let appearanceMode: AppearanceMode
     let zoomLevel: Double
 
@@ -21,6 +21,7 @@ struct MarkdownWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         applyAppearance(to: webView)
         webView.pageZoom = zoomLevel
+        loadContent(into: webView)
     }
 
     private func applyAppearance(to webView: WKWebView) {
@@ -41,7 +42,7 @@ struct MarkdownWebView: NSViewRepresentable {
               let markedJS = try? String(contentsOf: markedURL, encoding: .utf8)
         else { return }
 
-        let escaped = document.text
+        let escaped = text
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "`", with: "\\`")
             .replacingOccurrences(of: "$", with: "\\$")

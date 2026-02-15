@@ -1,5 +1,9 @@
 import SwiftUI
 
+extension Notification.Name {
+    static let reloadDocument = Notification.Name("reloadDocument")
+}
+
 enum AppearanceMode: String, CaseIterable {
     case system = "system"
     case light = "light"
@@ -21,10 +25,22 @@ struct MDViewerApp: App {
 
     var body: some Scene {
         DocumentGroup(viewing: MarkdownDocument.self) { file in
-            MarkdownWebView(document: file.document, appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system, zoomLevel: zoomLevel)
+            ContentView(
+                document: file.document,
+                fileURL: file.fileURL,
+                appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system,
+                zoomLevel: zoomLevel
+            )
         }
         .commands {
             CommandGroup(after: .toolbar) {
+                Button("Reload") {
+                    NotificationCenter.default.post(name: .reloadDocument, object: nil)
+                }
+                .keyboardShortcut("r", modifiers: .command)
+
+                Divider()
+
                 Button("Zoom In") {
                     zoomLevel = min(zoomLevel + 0.1, 3.0)
                 }

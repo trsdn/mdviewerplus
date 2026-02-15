@@ -49,6 +49,14 @@ xcodebuild -scheme MDViewer -configuration Release build
 | Light Mode | `Cmd Shift 1` |
 | Dark Mode | `Cmd Shift 2` |
 
+## Dependencies
+
+| Library | Version | License | Purpose |
+|---------|---------|---------|---------|
+| [marked](https://github.com/markedjs/marked) | 15.0.7 | MIT | Markdown → HTML parsing |
+
+No Swift package dependencies. No external frameworks.
+
 ## License
 
 [MIT](LICENSE)

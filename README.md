@@ -6,6 +6,7 @@ A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering wi
 ![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Size](https://img.shields.io/badge/App_Size-328KB-2ea44f)
+![Memory](https://img.shields.io/badge/Memory-~87MB-2ea44f)
 
 ## Features
 
@@ -14,6 +15,18 @@ A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering wi
 - **Zoom** — Cmd+/Cmd- with persistent zoom level
 - **Native file handling** — Open, Recent Files, drag & drop
 - **328 KB total** — no Electron, no runtime, no dependencies
+
+## Performance
+
+| Metric | Value |
+|--------|-------|
+| App size | 328 KB |
+| Download (zip) | 107 KB |
+| Cold start | ~57 ms |
+| Memory (idle) | ~69 MB |
+| Memory (133 KB file) | ~87 MB |
+
+Measured with a 133 KB Markdown file containing 500 sections with tables and code blocks.
 
 ## Install
 

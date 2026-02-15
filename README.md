@@ -5,6 +5,7 @@ A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering wi
 ![macOS](https://img.shields.io/badge/macOS-13.0+-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
+![Size](https://img.shields.io/badge/App_Size-328KB-2ea44f)
 
 ## Features
 
@@ -12,7 +13,7 @@ A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering wi
 - **Dark Mode** — automatic (system), light, or dark via View > Appearance
 - **Zoom** — Cmd+/Cmd- with persistent zoom level
 - **Native file handling** — Open, Recent Files, drag & drop
-- **Lightweight** — single-purpose, no dependencies
+- **328 KB total** — no Electron, no runtime, no dependencies
 
 ## Install
 

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MDViewer — Minimal macOS Markdown Viewer</title>
+<style>
+:root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --card-bg: #161b22;
+    --border: #30363d;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+}
+
+.hero {
+    text-align: center;
+    padding: 120px 24px 80px;
+}
+
+.icon {
+    width: 128px;
+    height: 128px;
+    background: linear-gradient(180deg, #2d2d2d, #1a1a1a);
+    border-radius: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 56px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 32px;
+    font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+}
+
+h1 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+}
+
+.tagline {
+    font-size: 20px;
+    color: var(--muted);
+    max-width: 500px;
+    margin: 0 auto 40px;
+}
+
+.cta {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--bg);
+    padding: 12px 32px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 16px;
+    transition: opacity 0.2s;
+}
+
+.cta:hover { opacity: 0.85; }
+
+.cta-secondary {
+    display: inline-block;
+    color: var(--muted);
+    padding: 12px 32px;
+    text-decoration: none;
+    font-size: 16px;
+}
+
+.cta-secondary:hover { color: var(--fg); }
+
+.features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 120px;
+}
+
+.feature {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+}
+
+.feature h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.feature p {
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.install {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 0 24px 120px;
+    text-align: center;
+}
+
+.install h2 {
+    font-size: 28px;
+    margin-bottom: 24px;
+}
+
+.install pre {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    text-align: left;
+    overflow-x: auto;
+    font-size: 14px;
+    font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+    color: var(--muted);
+    line-height: 1.8;
+}
+
+footer {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--muted);
+    font-size: 14px;
+    border-top: 1px solid var(--border);
+}
+
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+    <div class="icon">md</div>
+    <h1>MDViewer</h1>
+    <p class="tagline">A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering with Dark Mode.</p>
+    <a href="https://github.com/trsdn/mdviewer/releases/latest" class="cta">Download</a>
+    <a href="https://github.com/trsdn/mdviewer" class="cta-secondary">View on GitHub</a>
+</div>
+
+<div class="features">
+    <div class="feature">
+        <h3>GitHub-style Rendering</h3>
+        <p>Markdown rendered with marked.js — tables, code blocks, task lists, all looking clean.</p>
+    </div>
+    <div class="feature">
+        <h3>Dark Mode</h3>
+        <p>Follows system appearance automatically, or switch manually via the View menu.</p>
+    </div>
+    <div class="feature">
+        <h3>Native macOS</h3>
+        <p>Built with SwiftUI. Open files, Recent Files, drag & drop — it just works.</p>
+    </div>
+    <div class="feature">
+        <h3>Lightweight</h3>
+        <p>Single-purpose app. No Electron, no dependencies, no account required.</p>
+    </div>
+</div>
+
+<div class="install">
+    <h2>Build from Source</h2>
+    <pre>brew install xcodegen
+xcodegen generate
+xcodebuild -scheme MDViewer -configuration Release build</pre>
+</div>
+
+<footer>
+    <p>MIT License &middot; <a href="https://github.com/trsdn/mdviewer">GitHub</a></p>
+</footer>
+
+</body>
+</html>

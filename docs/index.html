@@ -1,188 +1,665 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" prefix="og: https://ogp.me/ns#">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MDViewer — Minimal macOS Markdown Viewer</title>
+<meta name="description" content="A 328 KB macOS Markdown viewer. GitHub-style rendering, automatic Dark Mode, 57ms cold start. No Electron, no bloat.">
+<meta name="keywords" content="markdown viewer, macOS, markdown reader, dark mode, lightweight, SwiftUI, markdown app">
+<meta name="author" content="Torsten Mahr">
+<meta name="theme-color" content="#0a0a0b">
+<link rel="canonical" href="https://trsdn.github.io/mdviewer/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://trsdn.github.io/mdviewer/">
+<meta property="og:title" content="MDViewer — Minimal macOS Markdown Viewer">
+<meta property="og:description" content="A 328 KB macOS Markdown viewer. GitHub-style rendering, automatic Dark Mode, 57ms cold start. No Electron, no bloat.">
+<meta property="og:site_name" content="MDViewer">
+<meta property="og:locale" content="en_US">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="MDViewer — 328 KB Markdown Viewer for macOS">
+<meta name="twitter:description" content="GitHub-style rendering, Dark Mode, 57ms cold start. No Electron, no dependencies.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "MDViewer",
+  "operatingSystem": "macOS 13.0+",
+  "applicationCategory": "DeveloperApplication",
+  "description": "A minimal macOS Markdown viewer with GitHub-style rendering and Dark Mode support.",
+  "fileSize": "328KB",
+  "softwareVersion": "1.0.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://trsdn.github.io/mdviewer/",
+  "downloadUrl": "https://github.com/trsdn/mdviewer/releases/latest",
+  "author": {
+    "@type": "Person",
+    "name": "Torsten Mahr",
+    "url": "https://github.com/trsdn"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+
 <style>
 :root {
-    --bg: #0d1117;
-    --fg: #e6edf3;
-    --muted: #8b949e;
-    --accent: #58a6ff;
-    --card-bg: #161b22;
-    --border: #30363d;
+    --bg: #0a0a0b;
+    --fg: #e8e6e1;
+    --muted: #6e6d69;
+    --accent: #c4f864;
+    --surface: #141415;
+    --border: #222224;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --mono: 'DM Mono', 'SF Mono', monospace;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html { scroll-behavior: smooth; }
+
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-family: var(--mono);
     background: var(--bg);
     color: var(--fg);
     line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
 }
 
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.grain { position: fixed; inset: 0; pointer-events: none; z-index: 9998; }
+
+/* ---- NAV ---- */
+nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 20px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(10, 10, 11, 0.8);
+    border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--fg);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.nav-links { display: flex; gap: 32px; align-items: center; }
+
+.nav-links a {
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.04em;
+    transition: color 0.3s;
+}
+
+.nav-links a:hover { color: var(--fg); }
+
+.nav-download {
+    font-size: 13px !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--accent);
+    padding: 6px 18px;
+    border-radius: 4px;
+    transition: background 0.3s, color 0.3s !important;
+}
+
+.nav-download:hover {
+    background: var(--accent);
+    color: var(--bg) !important;
+}
+
+/* ---- HERO ---- */
 .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     text-align: center;
     padding: 120px 24px 80px;
+    position: relative;
 }
 
-.icon {
-    width: 128px;
-    height: 128px;
-    background: linear-gradient(180deg, #2d2d2d, #1a1a1a);
-    border-radius: 28px;
-    display: inline-flex;
+.hero-icon {
+    width: 96px;
+    height: 96px;
+    background: linear-gradient(145deg, #2a2a2a, #151515);
+    border-radius: 22px;
+    display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 56px;
-    font-weight: 700;
+    font-family: var(--mono);
+    font-size: 38px;
+    font-weight: 400;
     color: #fff;
+    margin-bottom: 48px;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 24px 48px rgba(0,0,0,0.5);
+    animation: float 6s ease-in-out infinite;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards, float 6s ease-in-out 0.8s infinite;
+}
+
+.hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(56px, 10vw, 120px);
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
     margin-bottom: 32px;
-    font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.15s forwards;
 }
 
-h1 {
-    font-size: 48px;
-    font-weight: 700;
-    margin-bottom: 16px;
-    letter-spacing: -0.02em;
+.hero h1 em {
+    font-style: italic;
+    color: var(--accent);
 }
 
-.tagline {
-    font-size: 20px;
+.hero-sub {
+    font-size: 16px;
     color: var(--muted);
-    max-width: 500px;
-    margin: 0 auto 40px;
+    max-width: 420px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.3s forwards;
 }
 
-.cta {
-    display: inline-block;
+.hero-cta {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.45s forwards;
+}
+
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     background: var(--accent);
     color: var(--bg);
-    padding: 12px 32px;
-    border-radius: 8px;
+    padding: 14px 32px;
+    border-radius: 6px;
     text-decoration: none;
-    font-weight: 600;
-    font-size: 16px;
-    transition: opacity 0.2s;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.cta:hover { opacity: 0.85; }
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(196, 248, 100, 0.2);
+}
 
-.cta-secondary {
-    display: inline-block;
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: var(--muted);
-    padding: 12px 32px;
+    padding: 14px 24px;
     text-decoration: none;
-    font-size: 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    transition: color 0.3s;
 }
 
-.cta-secondary:hover { color: var(--fg); }
+.btn-ghost:hover { color: var(--fg); }
 
-.features {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
-    max-width: 900px;
+.scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: fadeUp 0.8s ease 0.8s forwards;
+}
+
+.scroll-line {
+    width: 1px;
+    height: 32px;
+    background: linear-gradient(to bottom, var(--muted), transparent);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* ---- STATS ---- */
+.stats {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 80px 24px;
+}
+
+.stats-inner {
+    max-width: 1000px;
     margin: 0 auto;
-    padding: 0 24px 120px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+}
+
+.stat {
+    background: var(--bg);
+    padding: 40px 32px;
+    text-align: center;
+}
+
+.stat-value {
+    font-family: var(--serif);
+    font-size: 48px;
+    font-weight: 400;
+    color: var(--fg);
+    line-height: 1;
+    margin-bottom: 8px;
+}
+
+.stat-value .unit {
+    font-size: 24px;
+    color: var(--muted);
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* ---- FEATURES ---- */
+.features {
+    padding: 120px 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.features-header {
+    margin-bottom: 80px;
+}
+
+.features-header .label {
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+}
+
+.features-header h2 {
+    font-family: var(--serif);
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    max-width: 560px;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
 }
 
 .feature {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px;
+    background: var(--bg);
+    padding: 48px 40px;
+    transition: background 0.4s;
+}
+
+.feature:hover { background: var(--surface); }
+
+.feature-num {
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    margin-bottom: 20px;
+    font-weight: 300;
 }
 
 .feature h3 {
-    font-size: 16px;
-    margin-bottom: 8px;
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 400;
+    margin-bottom: 12px;
 }
 
 .feature p {
     font-size: 14px;
     color: var(--muted);
+    line-height: 1.7;
+    font-weight: 300;
 }
 
+/* ---- INSTALL ---- */
 .install {
-    max-width: 600px;
+    padding: 120px 24px;
+    max-width: 680px;
     margin: 0 auto;
-    padding: 0 24px 120px;
-    text-align: center;
+}
+
+.install .label {
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
 }
 
 .install h2 {
-    font-size: 28px;
-    margin-bottom: 24px;
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 400;
+    margin-bottom: 40px;
+    letter-spacing: -0.01em;
 }
 
-.install pre {
-    background: var(--card-bg);
+.code-block {
+    background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px 24px;
-    text-align: left;
+    border-radius: 8px;
+    padding: 28px 32px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 2;
     overflow-x: auto;
-    font-size: 14px;
-    font-family: "SF Mono", SFMono-Regular, Consolas, monospace;
-    color: var(--muted);
-    line-height: 1.8;
+    position: relative;
 }
 
+.code-block .comment { color: #3d3d3f; }
+.code-block .cmd { color: var(--fg); }
+
+/* ---- SHORTCUTS ---- */
+.shortcuts {
+    padding: 0 24px 120px;
+    max-width: 680px;
+    margin: 0 auto;
+}
+
+.shortcuts h2 {
+    font-family: var(--serif);
+    font-size: 40px;
+    font-weight: 400;
+    margin-bottom: 40px;
+    letter-spacing: -0.01em;
+}
+
+.shortcut-list { list-style: none; }
+
+.shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+
+.shortcut-item:first-child { border-top: 1px solid var(--border); }
+
+.shortcut-action { color: var(--muted); font-weight: 300; }
+
+.shortcut-keys {
+    display: flex;
+    gap: 4px;
+}
+
+.key {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--fg);
+    font-family: var(--mono);
+}
+
+/* ---- FOOTER ---- */
 footer {
-    text-align: center;
-    padding: 40px 24px;
-    color: var(--muted);
-    font-size: 14px;
     border-top: 1px solid var(--border);
+    padding: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
 }
 
-footer a { color: var(--accent); text-decoration: none; }
-footer a:hover { text-decoration: underline; }
+footer a {
+    color: var(--muted);
+    text-decoration: none;
+    transition: color 0.3s;
+}
+
+footer a:hover { color: var(--fg); }
+
+.footer-links { display: flex; gap: 24px; }
+
+/* ---- ANIMATIONS ---- */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+/* ---- SCROLL REVEAL ---- */
+.reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ---- RESPONSIVE ---- */
+@media (max-width: 768px) {
+    nav { padding: 16px 20px; }
+    .nav-links { gap: 16px; }
+    .stats-inner { grid-template-columns: repeat(2, 1fr); }
+    .feature-grid { grid-template-columns: 1fr; }
+    .hero-cta { flex-direction: column; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+    .feature { padding: 36px 28px; }
+}
+
+@media (max-width: 480px) {
+    .stats-inner { grid-template-columns: 1fr; }
+    .stat-value { font-size: 36px; }
+    nav { padding: 14px 16px; }
+    .nav-links a:not(.nav-download) { display: none; }
+}
 </style>
 </head>
 <body>
 
-<div class="hero">
-    <div class="icon">md</div>
-    <h1>MDViewer</h1>
-    <p class="tagline">A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering with Dark Mode. The entire app is 328 KB.</p>
-    <a href="https://github.com/trsdn/mdviewer/releases/latest" class="cta">Download</a>
-    <a href="https://github.com/trsdn/mdviewer" class="cta-secondary">View on GitHub</a>
-</div>
+<nav>
+    <a href="#" class="nav-logo">mdviewer</a>
+    <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/trsdn/mdviewer" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/trsdn/mdviewer/releases/latest" class="nav-download" target="_blank" rel="noopener">Download</a>
+    </div>
+</nav>
 
-<div class="features">
-    <div class="feature">
-        <h3>GitHub-style Rendering</h3>
-        <p>Markdown rendered with marked.js — tables, code blocks, task lists, all looking clean.</p>
-    </div>
-    <div class="feature">
-        <h3>Dark Mode</h3>
-        <p>Follows system appearance automatically, or switch manually via the View menu.</p>
-    </div>
-    <div class="feature">
-        <h3>Native macOS</h3>
-        <p>Built with SwiftUI. Open files, Recent Files, drag & drop — it just works.</p>
-    </div>
-    <div class="feature">
-        <h3>328 KB / ~87 MB RAM</h3>
-        <p>The entire app is 328 KB. Uses ~87 MB RAM with a large file open. Cold start in 57 ms. No Electron, no runtime.</p>
-    </div>
-</div>
+<main>
+    <section class="hero" id="hero">
+        <div class="hero-icon" role="img" aria-label="MDViewer app icon">md</div>
+        <h1>Read markdown,<br><em>nothing else.</em></h1>
+        <p class="hero-sub">A macOS Markdown viewer in 328 KB. GitHub-style rendering, automatic Dark Mode, zero dependencies. Opens in 57 ms.</p>
+        <div class="hero-cta">
+            <a href="https://github.com/trsdn/mdviewer/releases/latest" class="btn-primary">Download for macOS</a>
+            <a href="https://github.com/trsdn/mdviewer" class="btn-ghost" target="_blank" rel="noopener">View source &rarr;</a>
+        </div>
+        <div class="scroll-hint" aria-hidden="true">
+            <div class="scroll-line"></div>
+        </div>
+    </section>
 
-<div class="install">
-    <h2>Build from Source</h2>
-    <pre>brew install xcodegen
-xcodegen generate
-xcodebuild -scheme MDViewer -configuration Release build</pre>
-</div>
+    <section class="stats reveal" aria-label="Performance metrics">
+        <div class="stats-inner">
+            <div class="stat">
+                <div class="stat-value">328<span class="unit"> KB</span></div>
+                <div class="stat-label">App size</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">87<span class="unit"> MB</span></div>
+                <div class="stat-label">Memory</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">57<span class="unit"> ms</span></div>
+                <div class="stat-label">Cold start</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">107<span class="unit"> KB</span></div>
+                <div class="stat-label">Download</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="features reveal" id="features">
+        <div class="features-header">
+            <p class="label">Features</p>
+            <h2>One thing, done right.</h2>
+        </div>
+        <div class="feature-grid">
+            <article class="feature">
+                <p class="feature-num">01</p>
+                <h3>GitHub-style rendering</h3>
+                <p>Markdown parsed with marked.js. Tables, fenced code blocks, task lists, blockquotes &mdash; rendered cleanly without a browser.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">02</p>
+                <h3>Automatic Dark Mode</h3>
+                <p>Follows your system appearance. Or override it manually &mdash; Light, Dark, or System &mdash; persistent across sessions.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">03</p>
+                <h3>Native macOS</h3>
+                <p>Built with SwiftUI and WKWebView. Open files, Recent Files, drag &amp; drop, window management &mdash; it just works.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">04</p>
+                <h3>No Electron. No runtime.</h3>
+                <p>328 KB total. No bundled browser, no Node.js, no frameworks. Just a native binary that launches in 57 milliseconds.</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="install reveal" id="install">
+        <p class="label">Install</p>
+        <h2>Build from source</h2>
+        <div class="code-block" role="code">
+            <span class="comment"># requires Xcode command line tools</span><br>
+            <span class="cmd">brew install xcodegen</span><br>
+            <span class="cmd">xcodegen generate</span><br>
+            <span class="cmd">xcodebuild -scheme MDViewer -configuration Release build</span>
+        </div>
+    </section>
+
+    <section class="shortcuts reveal">
+        <h2>Shortcuts</h2>
+        <ul class="shortcut-list">
+            <li class="shortcut-item">
+                <span class="shortcut-action">Zoom in</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">+</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Zoom out</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&minus;</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Actual size</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">0</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">System appearance</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&#8679;</kbd><kbd class="key">0</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Light mode</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&#8679;</kbd><kbd class="key">1</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Dark mode</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&#8679;</kbd><kbd class="key">2</kbd></span>
+            </li>
+        </ul>
+    </section>
+</main>
 
 <footer>
-    <p>MIT License &middot; <a href="https://github.com/trsdn/mdviewer">GitHub</a></p>
+    <span>MIT License &middot; macOS 13.0+</span>
+    <div class="footer-links">
+        <a href="https://github.com/trsdn/mdviewer" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/trsdn/mdviewer/releases" target="_blank" rel="noopener">Releases</a>
+    </div>
 </footer>
+
+<script>
+const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }});
+}, { threshold: 0.15 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
 
 </body>
 </html>

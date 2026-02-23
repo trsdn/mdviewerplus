@@ -270,6 +270,21 @@ nav {
     animation: pulse 2s ease-in-out infinite;
 }
 
+/* ---- SCREENSHOT ---- */
+.screenshot {
+    padding: 0 40px 80px;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+.screenshot img {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
 /* ---- STATS ---- */
 .stats {
     border-top: 1px solid var(--border);
@@ -555,6 +570,10 @@ footer a:hover { color: var(--fg); }
         <div class="scroll-hint" aria-hidden="true">
             <div class="scroll-line"></div>
         </div>
+    </section>
+
+    <section class="screenshot reveal">
+        <img src="screenshot-split.png" alt="MDViewer+ split view with syntax highlighting" width="1280" height="800" loading="lazy">
     </section>
 
     <section class="stats reveal" aria-label="Performance metrics">

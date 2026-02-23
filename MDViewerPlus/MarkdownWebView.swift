@@ -143,7 +143,7 @@ struct MarkdownWebView: NSViewRepresentable {
               let markedJS = try? String(contentsOf: markedURL, encoding: .utf8)
         else { return }
 
-        let jsonData = try? JSONSerialization.data(withJSONObject: text)
+        let jsonData = try? JSONSerialization.data(withJSONObject: text, options: .fragmentsAllowed)
         let jsonString = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
 
         html = html
@@ -156,8 +156,7 @@ struct MarkdownWebView: NSViewRepresentable {
                 of: "<head>",
                 with: "<head>\n<base href=\"\(fileDir.absoluteString)\">"
             )
-            let tempFile = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("mdviewerplus-preview.html")
+            let tempFile = fileDir.appendingPathComponent(".mdviewerplus-preview.html")
             try? html.write(to: tempFile, atomically: true, encoding: .utf8)
             webView.loadFileURL(tempFile, allowingReadAccessTo: fileDir)
         } else {

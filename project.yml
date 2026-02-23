@@ -1,4 +1,4 @@
-name: MDViewer
+name: MDViewerPlus
 options:
   bundleIdPrefix: com.torstenmahr
   deploymentTarget:
@@ -7,18 +7,18 @@ options:
   minimumXcodeGenVersion: "2.38"
 
 targets:
-  MDViewer:
+  MDViewerPlus:
     type: application
     platform: macOS
     sources:
-      - MDViewer
+      - MDViewerPlus
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewer
-        PRODUCT_NAME: MDViewer
+        PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlus
+        PRODUCT_NAME: "MDViewer+"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
-        INFOPLIST_FILE: MDViewer/Info.plist
+        INFOPLIST_FILE: MDViewerPlus/Info.plist
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"

@@ -3,40 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MDViewer — Minimal macOS Markdown Viewer</title>
-<meta name="description" content="A macOS Markdown viewer under 500 KB. GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
-<meta name="keywords" content="markdown viewer, macOS, markdown reader, dark mode, lightweight, SwiftUI, markdown app">
+<title>MDViewer+ — Minimal macOS Markdown Editor</title>
+<meta name="description" content="A macOS Markdown editor and viewer under 500 KB. Live split-view preview, GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
+<meta name="keywords" content="markdown editor, markdown viewer, macOS, markdown reader, dark mode, lightweight, SwiftUI, markdown app, live preview">
 <meta name="author" content="Torsten Mahr">
 <meta name="theme-color" content="#0a0a0b">
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="canonical" href="https://trsdn.github.io/mdviewer/">
+<link rel="canonical" href="https://trsdn.github.io/mdviewerplus/">
 
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://trsdn.github.io/mdviewer/">
-<meta property="og:title" content="MDViewer — Minimal macOS Markdown Viewer">
-<meta property="og:description" content="A macOS Markdown viewer under 500 KB. GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
-<meta property="og:site_name" content="MDViewer">
+<meta property="og:url" content="https://trsdn.github.io/mdviewerplus/">
+<meta property="og:title" content="MDViewer+ — Minimal macOS Markdown Editor">
+<meta property="og:description" content="A macOS Markdown editor and viewer under 500 KB. Live split-view preview, GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
+<meta property="og:site_name" content="MDViewer+">
 <meta property="og:locale" content="en_US">
 
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="MDViewer — Sub-500KB Markdown Viewer for macOS">
-<meta name="twitter:description" content="GitHub-style rendering, Dark Mode, sub-50ms cold start, under 100 MB RAM. No Electron, no dependencies.">
+<meta name="twitter:title" content="MDViewer+ — Sub-500KB Markdown Editor for macOS">
+<meta name="twitter:description" content="Live preview, GitHub-style rendering, Dark Mode, sub-50ms cold start, low memory footprint. No Electron, no dependencies.">
 
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  "name": "MDViewer",
+  "name": "MDViewer+",
   "operatingSystem": "macOS 13.0+",
   "applicationCategory": "DeveloperApplication",
-  "description": "A minimal macOS Markdown viewer with GitHub-style rendering and Dark Mode support.",
+  "description": "A minimal macOS Markdown editor and viewer with live preview, GitHub-style rendering, and Dark Mode support.",
   "fileSize": "<500KB",
   "softwareVersion": "1.0.0",
   "license": "https://opensource.org/licenses/MIT",
-  "url": "https://trsdn.github.io/mdviewer/",
-  "downloadUrl": "https://github.com/trsdn/mdviewer/releases/latest",
+  "url": "https://trsdn.github.io/mdviewerplus/",
+  "downloadUrl": "https://github.com/trsdn/mdviewerplus/releases/latest",
   "author": {
     "@type": "Person",
     "name": "Torsten Mahr",
@@ -164,7 +164,7 @@ nav {
     align-items: center;
     justify-content: center;
     font-family: var(--mono);
-    font-size: 38px;
+    font-size: 32px;
     font-weight: 400;
     color: #fff;
     margin-bottom: 48px;
@@ -193,7 +193,7 @@ nav {
 .hero-sub {
     font-size: 16px;
     color: var(--muted);
-    max-width: 420px;
+    max-width: 440px;
     line-height: 1.7;
     margin-bottom: 48px;
     font-weight: 300;
@@ -534,23 +534,23 @@ footer a:hover { color: var(--fg); }
 <body>
 
 <nav>
-    <a href="#" class="nav-logo">mdviewer</a>
+    <a href="#" class="nav-logo">mdviewer+</a>
     <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#install">Install</a>
-        <a href="https://github.com/trsdn/mdviewer" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/trsdn/mdviewer/releases/latest" class="nav-download" target="_blank" rel="noopener">Download</a>
+        <a href="https://github.com/trsdn/mdviewerplus" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/trsdn/mdviewerplus/releases/latest" class="nav-download" target="_blank" rel="noopener">Download</a>
     </div>
 </nav>
 
 <main>
     <section class="hero" id="hero">
-        <div class="hero-icon" role="img" aria-label="MDViewer app icon">md</div>
-        <h1>Read markdown,<br><em>nothing else.</em></h1>
-        <p class="hero-sub">A macOS Markdown viewer under 500 KB. GitHub-style rendering, automatic Dark Mode, zero dependencies. Less than 100 MB RAM.</p>
+        <div class="hero-icon" role="img" aria-label="MDViewer+ app icon">md+</div>
+        <h1>Edit markdown,<br><em>see it live.</em></h1>
+        <p class="hero-sub">A macOS Markdown editor under 500 KB. Split-view live preview, scroll sync, GitHub-style rendering, automatic Dark Mode. No Electron, no bloat.</p>
         <div class="hero-cta">
-            <a href="https://github.com/trsdn/mdviewer/releases/latest" class="btn-primary">Download for macOS</a>
-            <a href="https://github.com/trsdn/mdviewer" class="btn-ghost" target="_blank" rel="noopener">View source &rarr;</a>
+            <a href="https://github.com/trsdn/mdviewerplus/releases/latest" class="btn-primary">Download for macOS</a>
+            <a href="https://github.com/trsdn/mdviewerplus" class="btn-ghost" target="_blank" rel="noopener">View source &rarr;</a>
         </div>
         <div class="scroll-hint" aria-hidden="true">
             <div class="scroll-line"></div>
@@ -564,7 +564,7 @@ footer a:hover { color: var(--fg); }
                 <div class="stat-label">App size</div>
             </div>
             <div class="stat">
-                <div class="stat-value">&lt;100<span class="unit"> MB</span></div>
+                <div class="stat-value">~112<span class="unit"> MB</span></div>
                 <div class="stat-label">Memory</div>
             </div>
             <div class="stat">
@@ -581,26 +581,36 @@ footer a:hover { color: var(--fg); }
     <section class="features reveal" id="features">
         <div class="features-header">
             <p class="label">Features</p>
-            <h2>One thing, done right.</h2>
+            <h2>View, edit, preview &mdash; all in one.</h2>
         </div>
         <div class="feature-grid">
             <article class="feature">
                 <p class="feature-num">01</p>
+                <h3>Live split preview</h3>
+                <p>Side-by-side editor and preview with bidirectional scroll sync. Type on the left, see it rendered on the right &mdash; instantly.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">02</p>
+                <h3>Three view modes</h3>
+                <p>View-only, split, or edit-only. Cycle with &#8984;E. Files open read-only by default &mdash; enter edit mode when you need it.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">03</p>
                 <h3>GitHub-style rendering</h3>
                 <p>Markdown parsed with marked.js. Tables, fenced code blocks, task lists, blockquotes &mdash; rendered cleanly without a browser.</p>
             </article>
             <article class="feature">
-                <p class="feature-num">02</p>
+                <p class="feature-num">04</p>
                 <h3>Automatic Dark Mode</h3>
                 <p>Follows your system appearance. Or override it manually &mdash; Light, Dark, or System &mdash; persistent across sessions.</p>
             </article>
             <article class="feature">
-                <p class="feature-num">03</p>
-                <h3>Native macOS</h3>
-                <p>Built with SwiftUI and WKWebView. Open files, Recent Files, drag &amp; drop, window management &mdash; it just works.</p>
+                <p class="feature-num">05</p>
+                <h3>Markdown shortcuts</h3>
+                <p>Bold with &#8984;B, italic with &#8984;I, links with &#8984;K. Wraps your selection &mdash; no toolbar clutter, just keyboard flow.</p>
             </article>
             <article class="feature">
-                <p class="feature-num">04</p>
+                <p class="feature-num">06</p>
                 <h3>No Electron. No runtime.</h3>
                 <p>Under 500 KB total. No bundled browser, no Node.js, no frameworks. Just a native binary that launches in under 50 ms.</p>
             </article>
@@ -614,13 +624,41 @@ footer a:hover { color: var(--fg); }
             <span class="comment"># requires Xcode command line tools</span><br>
             <span class="cmd">brew install xcodegen</span><br>
             <span class="cmd">xcodegen generate</span><br>
-            <span class="cmd">xcodebuild -scheme MDViewer -configuration Release build</span>
+            <span class="cmd">xcodebuild -scheme MDViewerPlus -configuration Release build</span>
         </div>
     </section>
 
     <section class="shortcuts reveal">
         <h2>Shortcuts</h2>
         <ul class="shortcut-list">
+            <li class="shortcut-item">
+                <span class="shortcut-action">Toggle view mode</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">E</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Bold</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">B</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Italic</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">I</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Link</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">K</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">New file</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">N</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Save</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">S</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Reload</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">R</kbd></span>
+            </li>
             <li class="shortcut-item">
                 <span class="shortcut-action">Zoom in</span>
                 <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">+</kbd></span>
@@ -645,10 +683,6 @@ footer a:hover { color: var(--fg); }
                 <span class="shortcut-action">Dark mode</span>
                 <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&#8679;</kbd><kbd class="key">2</kbd></span>
             </li>
-            <li class="shortcut-item">
-                <span class="shortcut-action">Reload</span>
-                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">R</kbd></span>
-            </li>
         </ul>
     </section>
 </main>
@@ -656,8 +690,8 @@ footer a:hover { color: var(--fg); }
 <footer>
     <span>MIT License &middot; macOS 13.0+</span>
     <div class="footer-links">
-        <a href="https://github.com/trsdn/mdviewer" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/trsdn/mdviewer/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/trsdn/mdviewerplus" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/trsdn/mdviewerplus/releases" target="_blank" rel="noopener">Releases</a>
     </div>
 </footer>
 

@@ -1,20 +1,24 @@
-# MDViewer
+# MDViewer+
 
-A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering with automatic Dark Mode support.
+A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and live preview — no bloat.
 
 ![macOS](https://img.shields.io/badge/macOS-13.0+-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Size](https://img.shields.io/badge/App_Size-<500KB-2ea44f)
-![Memory](https://img.shields.io/badge/Memory-<100MB-2ea44f)
+![Memory](https://img.shields.io/badge/Memory-Low_Footprint-2ea44f)
 
 ## Features
 
+- **Three view modes** — view-only, split (editor + preview), and edit-only, cycled with Cmd+E
+- **Live preview** — edits render instantly in the side-by-side split view
+- **Scroll sync** — bidirectional scroll synchronization between editor and preview
+- **Markdown formatting** — Bold (Cmd+B), Italic (Cmd+I), Link (Cmd+K)
 - **GitHub-flavored rendering** via [marked.js](https://marked.js.org)
 - **Dark Mode** — automatic (system), light, or dark via View > Appearance
 - **Zoom** — Cmd+/Cmd- with persistent zoom level
-- **Reload** — Cmd+R to refresh after external edits
-- **Native file handling** — Open, Recent Files, drag & drop
+- **New files** — Cmd+N creates a blank Markdown document
+- **Native file handling** — Open, Save, Recent Files, drag & drop
 - **< 500 KB total** — no Electron, no runtime, no dependencies
 
 ## Performance
@@ -24,7 +28,7 @@ A minimal macOS Markdown viewer. No editor, no bloat — just clean rendering wi
 | App size | < 500 KB |
 | Download (zip) | < 150 KB |
 | Cold start | < 50 ms |
-| Memory | < 100 MB |
+| Memory | ~112 MB |
 
 ## Install
 
@@ -33,13 +37,19 @@ Download the latest `.app` from [Releases](https://github.com/trsdn/mdviewer/rel
 ```bash
 brew install xcodegen
 xcodegen generate
-xcodebuild -scheme MDViewer -configuration Release build
+xcodebuild -scheme MDViewerPlus -configuration Release build
 ```
 
 ## Keyboard Shortcuts
 
 | Action | Shortcut |
 |--------|----------|
+| Toggle View Mode | `Cmd E` |
+| Bold | `Cmd B` |
+| Italic | `Cmd I` |
+| Link | `Cmd K` |
+| Save | `Cmd S` |
+| New File | `Cmd N` |
 | Reload | `Cmd R` |
 | Zoom In | `Cmd +` |
 | Zoom Out | `Cmd -` |

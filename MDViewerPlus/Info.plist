@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>MDViewer</string>
+    <string>MDViewer+</string>
     <key>CFBundleDisplayName</key>
-    <string>MDViewer</string>
+    <string>MDViewer+</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleVersion</key>
@@ -35,7 +35,7 @@
             <key>CFBundleTypeName</key>
             <string>Markdown Document</string>
             <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
+            <string>Editor</string>
             <key>LSHandlerRank</key>
             <string>Default</string>
             <key>LSItemContentTypes</key>

@@ -2,6 +2,10 @@ import SwiftUI
 
 extension Notification.Name {
     static let reloadDocument = Notification.Name("reloadDocument")
+    static let toggleEditMode = Notification.Name("toggleEditMode")
+    static let formatBold = Notification.Name("formatBold")
+    static let formatItalic = Notification.Name("formatItalic")
+    static let formatLink = Notification.Name("formatLink")
 }
 
 enum AppearanceMode: String, CaseIterable {
@@ -19,14 +23,14 @@ enum AppearanceMode: String, CaseIterable {
 }
 
 @main
-struct MDViewerApp: App {
+struct MDViewerPlusApp: App {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
     @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
 
     var body: some Scene {
-        DocumentGroup(viewing: MarkdownDocument.self) { file in
+        DocumentGroup(newDocument: MarkdownDocument()) { file in
             ContentView(
-                document: file.document,
+                document: file.$document,
                 fileURL: file.fileURL,
                 appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system,
                 zoomLevel: zoomLevel
@@ -71,6 +75,30 @@ struct MDViewerApp: App {
                         .keyboardShortcut(shortcut(for: mode))
                     }
                 }
+            }
+
+            CommandGroup(after: .textEditing) {
+                Button("Toggle Edit Mode") {
+                    NotificationCenter.default.post(name: .toggleEditMode, object: nil)
+                }
+                .keyboardShortcut("e", modifiers: .command)
+            }
+
+            CommandMenu("Format") {
+                Button("Bold") {
+                    NotificationCenter.default.post(name: .formatBold, object: nil)
+                }
+                .keyboardShortcut("b", modifiers: .command)
+
+                Button("Italic") {
+                    NotificationCenter.default.post(name: .formatItalic, object: nil)
+                }
+                .keyboardShortcut("i", modifiers: .command)
+
+                Button("Link") {
+                    NotificationCenter.default.post(name: .formatLink, object: nil)
+                }
+                .keyboardShortcut("k", modifiers: .command)
             }
         }
     }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MDViewer+ — Minimal macOS Markdown Editor</title>
-<meta name="description" content="A macOS Markdown editor and viewer under 500 KB. Live split-view preview, GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
+<meta name="description" content="A macOS Markdown editor and viewer under 500 KB. Live split-view preview, syntax highlighting, GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
 <meta name="keywords" content="markdown editor, markdown viewer, macOS, markdown reader, dark mode, lightweight, SwiftUI, markdown app, live preview">
 <meta name="author" content="Torsten Mahr">
 <meta name="theme-color" content="#0a0a0b">
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://trsdn.github.io/mdviewerplus/">
 <meta property="og:title" content="MDViewer+ — Minimal macOS Markdown Editor">
-<meta property="og:description" content="A macOS Markdown editor and viewer under 500 KB. Live split-view preview, GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
+<meta property="og:description" content="A macOS Markdown editor and viewer under 500 KB. Live split-view preview, syntax highlighting, GitHub-style rendering, automatic Dark Mode, sub-50ms cold start. No Electron, no bloat.">
 <meta property="og:site_name" content="MDViewer+">
 <meta property="og:locale" content="en_US">
 
@@ -547,7 +547,7 @@ footer a:hover { color: var(--fg); }
     <section class="hero" id="hero">
         <div class="hero-icon" role="img" aria-label="MDViewer+ app icon">md+</div>
         <h1>Edit markdown,<br><em>see it live.</em></h1>
-        <p class="hero-sub">A macOS Markdown editor under 500 KB. Split-view live preview, scroll sync, GitHub-style rendering, automatic Dark Mode. No Electron, no bloat.</p>
+        <p class="hero-sub">A macOS Markdown editor under 500 KB. Split-view live preview, syntax highlighting, scroll sync, GitHub-style rendering, automatic Dark Mode. No Electron, no bloat.</p>
         <div class="hero-cta">
             <a href="https://github.com/trsdn/mdviewerplus/releases/latest" class="btn-primary">Download for macOS</a>
             <a href="https://github.com/trsdn/mdviewerplus" class="btn-ghost" target="_blank" rel="noopener">View source &rarr;</a>
@@ -611,6 +611,16 @@ footer a:hover { color: var(--fg); }
             </article>
             <article class="feature">
                 <p class="feature-num">06</p>
+                <h3>Syntax highlighting</h3>
+                <p>The editor highlights headings, bold, italic, links, code blocks, blockquotes, and list markers as you type &mdash; all color-coded to match the theme.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">07</p>
+                <h3>Context-aware zoom</h3>
+                <p>&#8984;+/&#8984;&minus; zoom the active pane. In view mode it scales the preview, in edit mode it resizes the editor font, in split mode it targets whichever pane has focus.</p>
+            </article>
+            <article class="feature">
+                <p class="feature-num">08</p>
                 <h3>No Electron. No runtime.</h3>
                 <p>Under 500 KB total. No bundled browser, no Node.js, no frameworks. Just a native binary that launches in under 50 ms.</p>
             </article>

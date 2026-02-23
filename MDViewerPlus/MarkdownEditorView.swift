@@ -4,8 +4,10 @@ import AppKit
 struct MarkdownEditorView: NSViewRepresentable {
     @Binding var text: String
     var appearanceMode: AppearanceMode = .system
+    var fontSize: CGFloat = 14
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
+    var onFocus: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -21,13 +23,13 @@ struct MarkdownEditorView: NSViewRepresentable {
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
-        textView.isRichText = false
+        textView.isRichText = true
         textView.isAutomaticQuoteSubstitutionEnabled = false
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.usesFindPanel = true
 
-        textView.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        textView.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         textView.insertionPointColor = .textColor
 
         textView.isHorizontallyResizable = false
@@ -39,12 +41,13 @@ struct MarkdownEditorView: NSViewRepresentable {
             height: CGFloat.greatestFiniteMagnitude
         )
 
-        textView.textContainerInset = NSSize(width: 48, height: 32)
+        textView.textContainerInset = NSSize(width: 16, height: 16)
 
         textView.string = text
         context.coordinator.textView = textView
         context.coordinator.scrollView = scrollView
         applyAppearance(to: scrollView)
+        applyHighlighting(to: textView)
 
         scrollView.contentView.postsBoundsChangedNotifications = true
 
@@ -58,7 +61,9 @@ struct MarkdownEditorView: NSViewRepresentable {
             textView.string = text
             textView.selectedRanges = selectedRanges
         }
+        textView.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         applyAppearance(to: scrollView)
+        applyHighlighting(to: textView)
 
         // Apply incoming scroll from preview
         if scrollSource == .preview, let documentView = scrollView.documentView {
@@ -78,6 +83,27 @@ struct MarkdownEditorView: NSViewRepresentable {
                 }
             }
         }
+    }
+
+    private func isDark() -> Bool {
+        switch appearanceMode {
+        case .system:
+            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        case .light:
+            return false
+        case .dark:
+            return true
+        }
+    }
+
+    private func applyHighlighting(to textView: NSTextView) {
+        let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        let highlighter = MarkdownSyntaxHighlighter(baseFont: font, isDark: isDark())
+        highlighter.highlight(textView.textStorage)
+        textView.typingAttributes = [
+            .font: font,
+            .foregroundColor: isDark() ? Self.darkFg : Self.lightFg,
+        ]
     }
 
     private static let lightBg = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
@@ -161,9 +187,14 @@ struct MarkdownEditorView: NSViewRepresentable {
             parent.scrollFraction = min(max(fraction, 0), 1)
         }
 
+        func textViewDidChangeSelection(_ notification: Notification) {
+            parent.onFocus?()
+        }
+
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+            parent.applyHighlighting(to: textView)
         }
 
         private func wrapSelection(with marker: String) {

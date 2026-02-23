@@ -3,10 +3,12 @@ import WebKit
 
 struct MarkdownWebView: NSViewRepresentable {
     let text: String
+    let fileURL: URL?
     let appearanceMode: AppearanceMode
     let zoomLevel: Double
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
+    var onFocus: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -16,8 +18,9 @@ struct MarkdownWebView: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         config.userContentController.add(context.coordinator, name: "scrollHandler")
+        config.userContentController.add(context.coordinator, name: "focusHandler")
 
-        let scrollJS = """
+        let injectedJS = """
         window.addEventListener('scroll', function() {
             var maxScroll = document.body.scrollHeight - window.innerHeight;
             if (maxScroll > 0) {
@@ -25,8 +28,11 @@ struct MarkdownWebView: NSViewRepresentable {
                 window.webkit.messageHandlers.scrollHandler.postMessage(fraction);
             }
         });
+        window.addEventListener('mousedown', function() {
+            window.webkit.messageHandlers.focusHandler.postMessage(true);
+        });
         """
-        let script = WKUserScript(source: scrollJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        let script = WKUserScript(source: injectedJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         config.userContentController.addUserScript(script)
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -34,6 +40,7 @@ struct MarkdownWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         context.coordinator.pendingScrollFraction = scrollFraction
         context.coordinator.lastText = text
+        context.coordinator.lastFileURL = fileURL
         context.coordinator.lastAppearance = appearanceMode
         context.coordinator.lastZoom = zoomLevel
         applyAppearance(to: webView)
@@ -45,6 +52,7 @@ struct MarkdownWebView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         let coordinator = context.coordinator
         let needsReload = coordinator.lastText != text
+            || coordinator.lastFileURL != fileURL
             || coordinator.lastAppearance != appearanceMode
             || coordinator.lastZoom != zoomLevel
 
@@ -52,6 +60,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
         if needsReload {
             coordinator.lastText = text
+            coordinator.lastFileURL = fileURL
             coordinator.lastAppearance = appearanceMode
             coordinator.lastZoom = zoomLevel
             applyAppearance(to: webView)
@@ -73,6 +82,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var parent: MarkdownWebView
         var pendingScrollFraction: CGFloat = 0
         var lastText: String = ""
+        var lastFileURL: URL?
         var lastAppearance: AppearanceMode = .system
         var lastZoom: Double = 1.0
         var isSyncing = false
@@ -88,9 +98,23 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "focusHandler" {
+                parent.onFocus?()
+                return
+            }
             guard !isSyncing, let fraction = message.body as? Double else { return }
+            parent.onFocus?()
             parent.scrollSource = .preview
             parent.scrollFraction = min(max(CGFloat(fraction), 0), 1)
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+            } else {
+                decisionHandler(.allow)
+            }
         }
     }
 
@@ -121,6 +145,18 @@ struct MarkdownWebView: NSViewRepresentable {
             .replacingOccurrences(of: "{{MARKED_JS}}", with: markedJS)
             .replacingOccurrences(of: "{{MARKDOWN_CONTENT}}", with: escaped)
 
-        webView.loadHTMLString(html, baseURL: templateURL.deletingLastPathComponent())
+        if let fileDir = fileURL?.deletingLastPathComponent() {
+            // Inject <base> so relative image paths resolve against the markdown file's directory
+            html = html.replacingOccurrences(
+                of: "<head>",
+                with: "<head>\n<base href=\"\(fileDir.absoluteString)\">"
+            )
+            let tempFile = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("mdviewerplus-preview.html")
+            try? html.write(to: tempFile, atomically: true, encoding: .utf8)
+            webView.loadFileURL(tempFile, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+        } else {
+            webView.loadHTMLString(html, baseURL: templateURL.deletingLastPathComponent())
+        }
     }
 }

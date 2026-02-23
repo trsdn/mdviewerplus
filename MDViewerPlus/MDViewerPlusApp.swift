@@ -6,6 +6,9 @@ extension Notification.Name {
     static let formatBold = Notification.Name("formatBold")
     static let formatItalic = Notification.Name("formatItalic")
     static let formatLink = Notification.Name("formatLink")
+    static let zoomIn = Notification.Name("zoomIn")
+    static let zoomOut = Notification.Name("zoomOut")
+    static let zoomReset = Notification.Name("zoomReset")
 }
 
 enum AppearanceMode: String, CaseIterable {
@@ -25,15 +28,13 @@ enum AppearanceMode: String, CaseIterable {
 @main
 struct MDViewerPlusApp: App {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
-    @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
 
     var body: some Scene {
         DocumentGroup(newDocument: MarkdownDocument()) { file in
             ContentView(
                 document: file.$document,
                 fileURL: file.fileURL,
-                appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system,
-                zoomLevel: zoomLevel
+                appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system
             )
         }
         .commands {
@@ -46,17 +47,17 @@ struct MDViewerPlusApp: App {
                 Divider()
 
                 Button("Zoom In") {
-                    zoomLevel = min(zoomLevel + 0.1, 3.0)
+                    NotificationCenter.default.post(name: .zoomIn, object: nil)
                 }
                 .keyboardShortcut("+", modifiers: .command)
 
                 Button("Zoom Out") {
-                    zoomLevel = max(zoomLevel - 0.1, 0.5)
+                    NotificationCenter.default.post(name: .zoomOut, object: nil)
                 }
                 .keyboardShortcut("-", modifiers: .command)
 
                 Button("Actual Size") {
-                    zoomLevel = 1.0
+                    NotificationCenter.default.post(name: .zoomReset, object: nil)
                 }
                 .keyboardShortcut("0", modifiers: .command)
 

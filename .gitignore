@@ -10,5 +10,8 @@ build/
 *.swp
 *~
 
+# Preview temp file
+.mdviewerplus-preview.html
+
 # Claude
 .claude/

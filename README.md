@@ -14,11 +14,12 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 
 - **Three view modes** — view-only, split (editor + preview), and edit-only, cycled with Cmd+E
 - **Live preview** — edits render instantly in the side-by-side split view
+- **Syntax highlighting** — headings, bold, italic, links, code blocks, blockquotes, and list markers color-coded in the editor
 - **Scroll sync** — bidirectional scroll synchronization between editor and preview
 - **Markdown formatting** — Bold (Cmd+B), Italic (Cmd+I), Link (Cmd+K)
 - **GitHub-flavored rendering** via [marked.js](https://marked.js.org)
 - **Dark Mode** — automatic (system), light, or dark via View > Appearance
-- **Zoom** — Cmd+/Cmd- with persistent zoom level
+- **Context-aware zoom** — Cmd+/Cmd- targets the active pane: preview in view mode, editor font in edit mode, focused pane in split mode
 - **New files** — Cmd+N creates a blank Markdown document
 - **Native file handling** — Open, Save, Recent Files, drag & drop
 - **< 500 KB total** — no Electron, no runtime, no dependencies

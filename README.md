@@ -8,6 +8,8 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 ![Size](https://img.shields.io/badge/App_Size-<500KB-2ea44f)
 ![Memory](https://img.shields.io/badge/Memory-Low_Footprint-2ea44f)
 
+![MDViewer+ split view](docs/screenshot-split.png)
+
 ## Features
 
 - **Three view modes** — view-only, split (editor + preview), and edit-only, cycled with Cmd+E

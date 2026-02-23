@@ -49,6 +49,11 @@ struct MarkdownWebView: NSViewRepresentable {
         return webView
     }
 
+    static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollHandler")
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "focusHandler")
+    }
+
     func updateNSView(_ webView: WKWebView, context: Context) {
         let coordinator = context.coordinator
         let needsReload = coordinator.lastText != text
@@ -66,7 +71,8 @@ struct MarkdownWebView: NSViewRepresentable {
             applyAppearance(to: webView)
             webView.pageZoom = zoomLevel
             loadContent(into: webView)
-        } else if scrollSource == .editor {
+        } else if scrollSource == .editor, coordinator.lastSyncedFraction != scrollFraction {
+            coordinator.lastSyncedFraction = scrollFraction
             let fraction = scrollFraction
             let js = "window.scrollTo(0, \(fraction) * (document.body.scrollHeight - window.innerHeight));"
             coordinator.isSyncing = true
@@ -86,6 +92,7 @@ struct MarkdownWebView: NSViewRepresentable {
         var lastAppearance: AppearanceMode = .system
         var lastZoom: Double = 1.0
         var isSyncing = false
+        var lastSyncedFraction: CGFloat = -1
 
         init(_ parent: MarkdownWebView) {
             self.parent = parent
@@ -136,14 +143,12 @@ struct MarkdownWebView: NSViewRepresentable {
               let markedJS = try? String(contentsOf: markedURL, encoding: .utf8)
         else { return }
 
-        let escaped = text
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "`", with: "\\`")
-            .replacingOccurrences(of: "$", with: "\\$")
+        let jsonData = try? JSONSerialization.data(withJSONObject: text)
+        let jsonString = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
 
         html = html
             .replacingOccurrences(of: "{{MARKED_JS}}", with: markedJS)
-            .replacingOccurrences(of: "{{MARKDOWN_CONTENT}}", with: escaped)
+            .replacingOccurrences(of: "{{MARKDOWN_CONTENT}}", with: jsonString)
 
         if let fileDir = fileURL?.deletingLastPathComponent() {
             // Inject <base> so relative image paths resolve against the markdown file's directory
@@ -154,7 +159,7 @@ struct MarkdownWebView: NSViewRepresentable {
             let tempFile = URL(fileURLWithPath: NSTemporaryDirectory())
                 .appendingPathComponent("mdviewerplus-preview.html")
             try? html.write(to: tempFile, atomically: true, encoding: .utf8)
-            webView.loadFileURL(tempFile, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+            webView.loadFileURL(tempFile, allowingReadAccessTo: fileDir)
         } else {
             webView.loadHTMLString(html, baseURL: templateURL.deletingLastPathComponent())
         }

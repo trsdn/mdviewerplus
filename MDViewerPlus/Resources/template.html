@@ -132,8 +132,7 @@ input[type="checkbox"] { margin-right: 0.5em; }
 <div id="content"></div>
 <script>{{MARKED_JS}}</script>
 <script>
-    // Content is from local user files rendered in a sandboxed WKWebView
-    const md = `{{MARKDOWN_CONTENT}}`;
+    const md = {{MARKDOWN_CONTENT}};
     const rendered = marked.parse(md);
     document.getElementById('content').innerHTML = rendered;
 </script>

@@ -198,7 +198,8 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
 
         private func wrapSelection(with marker: String) {
-            guard let textView = textView else { return }
+            guard let textView = textView,
+                  textView.window?.firstResponder == textView else { return }
             let range = textView.selectedRange()
             let string = textView.string as NSString
             let selected = string.substring(with: range)
@@ -211,13 +212,14 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
 
         private func insertLink() {
-            guard let textView = textView else { return }
+            guard let textView = textView,
+                  textView.window?.firstResponder == textView else { return }
             let range = textView.selectedRange()
             let string = textView.string as NSString
             let selected = string.substring(with: range)
             let replacement = "[\(selected)](url)"
             textView.insertText(replacement, replacementRange: range)
-            let urlStart = range.location + selected.count + 2
+            let urlStart = range.location + (selected as NSString).length + 2
             textView.setSelectedRange(NSRange(location: urlStart, length: 3))
         }
     }

@@ -5,7 +5,7 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 ![macOS](https://img.shields.io/badge/macOS-13.0+-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-![Size](https://img.shields.io/badge/App_Size-<500KB-2ea44f)
+![Size](https://img.shields.io/badge/App_Size-512KB-2ea44f)
 ![Memory](https://img.shields.io/badge/Memory-Low_Footprint-2ea44f)
 
 ![MDViewer+ split view](docs/screenshot-split.png)
@@ -19,16 +19,17 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 - **Markdown formatting** — Bold (Cmd+B), Italic (Cmd+I), Link (Cmd+K)
 - **GitHub-flavored rendering** via [marked.js](https://marked.js.org)
 - **Dark Mode** — automatic (system), light, or dark via View > Appearance
+- **Print** — Cmd+P opens the native macOS print dialog with paginated A4 output
 - **Context-aware zoom** — Cmd+/Cmd- targets the active pane: preview in view mode, editor font in edit mode, focused pane in split mode
 - **New files** — Cmd+N creates a blank Markdown document
 - **Native file handling** — Open, Save, Recent Files, drag & drop
-- **< 500 KB total** — no Electron, no runtime, no dependencies
+- **512 KB total** — no Electron, no runtime, no dependencies
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| App size | < 500 KB |
+| App size | 512 KB |
 | Download (zip) | < 150 KB |
 | Cold start | < 50 ms |
 | Memory | ~112 MB |
@@ -47,6 +48,7 @@ xcodebuild -scheme MDViewerPlus -configuration Release build
 
 | Action | Shortcut |
 |--------|----------|
+| Print | `Cmd P` |
 | Toggle View Mode | `Cmd E` |
 | Bold | `Cmd B` |
 | Italic | `Cmd I` |

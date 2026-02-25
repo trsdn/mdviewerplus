@@ -126,6 +126,28 @@ tr:nth-child(2n) { background-color: var(--color-code-bg); }
 img { max-width: 100%; height: auto; }
 
 input[type="checkbox"] { margin-right: 0.5em; }
+
+@media print {
+    :root {
+        --color-bg: #ffffff;
+        --color-fg: #24292f;
+        --color-border: #d0d7de;
+        --color-code-bg: #f6f8fa;
+        --color-link: #0969da;
+        --color-blockquote-fg: #656d76;
+        --color-blockquote-border: #d0d7de;
+        --color-hr: #d8dee4;
+    }
+    body {
+        background: white;
+        color: black;
+        padding: 0;
+    }
+    pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+}
 </style>
 </head>
 <body>

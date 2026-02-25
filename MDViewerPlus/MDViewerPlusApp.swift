@@ -9,6 +9,7 @@ extension Notification.Name {
     static let zoomIn = Notification.Name("zoomIn")
     static let zoomOut = Notification.Name("zoomOut")
     static let zoomReset = Notification.Name("zoomReset")
+    static let printDocument = Notification.Name("printDocument")
 }
 
 enum AppearanceMode: String, CaseIterable {
@@ -38,6 +39,13 @@ struct MDViewerPlusApp: App {
             )
         }
         .commands {
+            CommandGroup(replacing: .printItem) {
+                Button("Print…") {
+                    NotificationCenter.default.post(name: .printDocument, object: nil)
+                }
+                .keyboardShortcut("p", modifiers: .command)
+            }
+
             CommandGroup(after: .toolbar) {
                 Button("Reload") {
                     NotificationCenter.default.post(name: .reloadDocument, object: nil)

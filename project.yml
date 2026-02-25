@@ -23,3 +23,9 @@ targets:
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "13.0"
         CODE_SIGN_STYLE: Automatic
+      release:
+        SWIFT_OPTIMIZATION_LEVEL: "-Osize"
+        DEAD_CODE_STRIPPING: true
+        STRIP_INSTALLED_PRODUCT: true
+        STRIP_SWIFT_SYMBOLS: true
+        STRIP_STYLE: "non-global"

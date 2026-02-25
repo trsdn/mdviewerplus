@@ -5,7 +5,7 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 ![macOS](https://img.shields.io/badge/macOS-13.0+-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue)
-![Size](https://img.shields.io/badge/App_Size-512KB-2ea44f)
+![Size](https://img.shields.io/badge/App_Size-360KB-2ea44f)
 ![Memory](https://img.shields.io/badge/Memory-Low_Footprint-2ea44f)
 
 ![MDViewer+ split view](docs/screenshot-split.png)
@@ -23,13 +23,13 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 - **Context-aware zoom** — Cmd+/Cmd- targets the active pane: preview in view mode, editor font in edit mode, focused pane in split mode
 - **New files** — Cmd+N creates a blank Markdown document
 - **Native file handling** — Open, Save, Recent Files, drag & drop
-- **512 KB total** — no Electron, no runtime, no dependencies
+- **360 KB total** — no Electron, no runtime, no dependencies
 
 ## Performance
 
 | Metric | Value |
 |--------|-------|
-| App size | 512 KB |
+| App size | 360 KB |
 | Download (zip) | < 150 KB |
 | Cold start | < 50 ms |
 | Memory | ~112 MB |

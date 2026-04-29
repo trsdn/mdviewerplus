@@ -4,6 +4,11 @@ xcuserdata/
 DerivedData/
 *.xcworkspace/
 build/
+dist/
+release-build/
+.release.env
+*.dmg
+*.dmg.sha256
 
 # macOS
 .DS_Store

@@ -36,13 +36,24 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 
 ## Install
 
-Download the latest `.app` from [Releases](https://github.com/trsdn/mdviewer/releases) or build from source:
+Download the latest signed DMG from [Releases](https://github.com/trsdn/mdviewerplus/releases) or build from source:
 
 ```bash
 brew install xcodegen
 xcodegen generate
 xcodebuild -scheme MDViewerPlus -configuration Release build
 ```
+
+## Signed DMG Release
+
+Create a local release config from `.release.env.example`, then run:
+
+```bash
+scripts/release_macos.sh
+```
+
+The GitHub release workflow builds a signed, notarized DMG on `v*` tags. Configure these repository secrets first:
+`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PWD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_PASSWORD`.
 
 ## Keyboard Shortcuts
 

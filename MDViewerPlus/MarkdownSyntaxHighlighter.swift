@@ -70,10 +70,20 @@ struct MarkdownSyntaxHighlighter {
 
     // MARK: - Highlight
 
-    func highlight(_ textStorage: NSTextStorage?) {
+    func highlight(
+        _ textStorage: NSTextStorage?,
+        editedRange: NSRange? = nil,
+        rehighlightToEnd: Bool = false
+    ) {
         guard let textStorage = textStorage else { return }
         let fullRange = NSRange(location: 0, length: textStorage.length)
         let source = textStorage.string
+        let targetRange = targetRange(
+            in: source,
+            fullRange: fullRange,
+            editedRange: editedRange,
+            rehighlightToEnd: rehighlightToEnd
+        )
 
         textStorage.beginEditing()
 
@@ -82,16 +92,52 @@ struct MarkdownSyntaxHighlighter {
             .font: baseFont,
             .foregroundColor: textColor,
         ]
-        textStorage.setAttributes(baseAttributes, range: fullRange)
+        textStorage.setAttributes(baseAttributes, range: targetRange)
 
         for (name, regex) in Self.compiledPatterns {
-            let matches = regex.matches(in: source, range: fullRange)
+            let matches = regex.matches(in: source, range: targetRange)
             for match in matches {
                 applyStyle(name: name, match: match, textStorage: textStorage)
             }
         }
 
         textStorage.endEditing()
+    }
+
+    private func targetRange(
+        in source: String,
+        fullRange: NSRange,
+        editedRange: NSRange?,
+        rehighlightToEnd: Bool
+    ) -> NSRange {
+        guard let editedRange else { return fullRange }
+
+        let nsSource = source as NSString
+        let location = min(max(editedRange.location, 0), fullRange.length)
+        let length = min(
+            max(editedRange.length, 0),
+            fullRange.length - location
+        )
+        var target = nsSource.lineRange(
+            for: NSRange(location: location, length: length)
+        )
+
+        if rehighlightToEnd {
+            target.length = fullRange.length - target.location
+            return target
+        }
+
+        guard let fencedCodeRegex = Self.compiledPatterns.first(
+            where: { $0.name == "fencedCode" }
+        )?.regex else {
+            return target
+        }
+
+        for match in fencedCodeRegex.matches(in: source, range: fullRange)
+        where NSIntersectionRange(match.range, target).length > 0 {
+            target = NSUnionRange(target, match.range)
+        }
+        return target
     }
 
     private func applyStyle(name: String, match: NSTextCheckingResult, textStorage: NSTextStorage) {

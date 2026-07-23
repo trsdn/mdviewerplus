@@ -15,9 +15,5 @@ release-build/
 *.swp
 *~
 
-# Preview temp files
-.mdviewerplus-preview.html
-.mdviewerplus-print.html
-
 # Claude
 .claude/

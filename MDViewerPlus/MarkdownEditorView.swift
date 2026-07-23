@@ -7,6 +7,7 @@ struct MarkdownEditorView: NSViewRepresentable {
     var fontSize: CGFloat = 14
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
+    let commandRequest: EditorCommandRequest?
     var onFocus: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -20,6 +21,7 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
 
         textView.delegate = context.coordinator
+        textView.setAccessibilityIdentifier("markdownEditor")
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
@@ -46,8 +48,13 @@ struct MarkdownEditorView: NSViewRepresentable {
         textView.string = text
         context.coordinator.textView = textView
         context.coordinator.scrollView = scrollView
+        context.coordinator.lastHandledCommandID = commandRequest?.id
         applyAppearance(to: scrollView)
         applyHighlighting(to: textView)
+        context.coordinator.lastHighlightedText = text
+        context.coordinator.lastFontSize = fontSize
+        context.coordinator.lastIsDark = isDark()
+        textView.textStorage?.delegate = context.coordinator
 
         scrollView.contentView.postsBoundsChangedNotifications = true
 
@@ -56,14 +63,39 @@ struct MarkdownEditorView: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
+        let coordinator = context.coordinator
+        coordinator.parent = self
+        var requiresFullHighlight = false
+
         if textView.string != text {
             let selectedRanges = textView.selectedRanges
+            coordinator.isApplyingExternalText = true
             textView.string = text
-            textView.selectedRanges = selectedRanges
+            coordinator.isApplyingExternalText = false
+            textView.selectedRanges = clamped(
+                selectedRanges,
+                toUTF16Length: (text as NSString).length
+            )
+            coordinator.lastHighlightedText = text
+            requiresFullHighlight = true
         }
-        textView.font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+
+        let dark = isDark()
+        if coordinator.lastFontSize != fontSize || coordinator.lastIsDark != dark {
+            coordinator.lastFontSize = fontSize
+            coordinator.lastIsDark = dark
+            textView.font = NSFont.monospacedSystemFont(
+                ofSize: fontSize,
+                weight: .regular
+            )
+            requiresFullHighlight = true
+        }
+
         applyAppearance(to: scrollView)
-        applyHighlighting(to: textView)
+        if requiresFullHighlight {
+            applyHighlighting(to: textView)
+        }
+        coordinator.handle(commandRequest)
 
         // Apply incoming scroll from preview
         if scrollSource == .preview, let documentView = scrollView.documentView {
@@ -74,11 +106,11 @@ struct MarkdownEditorView: NSViewRepresentable {
                 let targetY = scrollFraction * maxScroll
                 let currentY = scrollView.contentView.bounds.origin.y
                 if abs(targetY - currentY) > 1 {
-                    context.coordinator.isSyncing = true
+                    coordinator.isSyncing = true
                     scrollView.contentView.setBoundsOrigin(NSPoint(x: 0, y: targetY))
                     scrollView.reflectScrolledClipView(scrollView.contentView)
                     DispatchQueue.main.async {
-                        context.coordinator.isSyncing = false
+                        coordinator.isSyncing = false
                     }
                 }
             }
@@ -96,14 +128,38 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
     }
 
-    private func applyHighlighting(to textView: NSTextView) {
+    private func applyHighlighting(
+        to textView: NSTextView,
+        editedRange: NSRange? = nil,
+        rehighlightToEnd: Bool = false
+    ) {
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         let highlighter = MarkdownSyntaxHighlighter(baseFont: font, isDark: isDark())
-        highlighter.highlight(textView.textStorage)
+        highlighter.highlight(
+            textView.textStorage,
+            editedRange: editedRange,
+            rehighlightToEnd: rehighlightToEnd
+        )
         textView.typingAttributes = [
             .font: font,
             .foregroundColor: isDark() ? Self.darkFg : Self.lightFg,
         ]
+    }
+
+    private func clamped(
+        _ ranges: [NSValue],
+        toUTF16Length length: Int
+    ) -> [NSValue] {
+        ranges.map { value in
+            let range = value.rangeValue
+            let location = min(range.location, length)
+            return NSValue(
+                range: NSRange(
+                    location: location,
+                    length: min(range.length, length - location)
+                )
+            )
+        }
     }
 
     private static let lightBg = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
@@ -135,28 +191,21 @@ struct MarkdownEditorView: NSViewRepresentable {
         textView.insertionPointColor = textView.textColor ?? .textColor
     }
 
-    class Coordinator: NSObject, NSTextViewDelegate {
+    class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
         var parent: MarkdownEditorView
         weak var textView: NSTextView?
         weak var scrollView: NSScrollView?
         var isSyncing = false
+        var isApplyingExternalText = false
+        var lastHighlightedText = ""
+        var lastFontSize: CGFloat = 0
+        var lastIsDark = false
+        var lastHandledCommandID: UUID?
         private var notificationObservers: [NSObjectProtocol] = []
 
         init(_ parent: MarkdownEditorView) {
             self.parent = parent
             super.init()
-
-            let boldObserver = NotificationCenter.default.addObserver(
-                forName: .formatBold, object: nil, queue: .main
-            ) { [weak self] _ in self?.wrapSelection(with: "**") }
-
-            let italicObserver = NotificationCenter.default.addObserver(
-                forName: .formatItalic, object: nil, queue: .main
-            ) { [weak self] _ in self?.wrapSelection(with: "_") }
-
-            let linkObserver = NotificationCenter.default.addObserver(
-                forName: .formatLink, object: nil, queue: .main
-            ) { [weak self] _ in self?.insertLink() }
 
             let scrollObserver = NotificationCenter.default.addObserver(
                 forName: NSView.boundsDidChangeNotification, object: nil, queue: .main
@@ -164,7 +213,7 @@ struct MarkdownEditorView: NSViewRepresentable {
                 self?.handleScroll(notification)
             }
 
-            notificationObservers = [boldObserver, italicObserver, linkObserver, scrollObserver]
+            notificationObservers = [scrollObserver]
         }
 
         deinit {
@@ -194,7 +243,45 @@ struct MarkdownEditorView: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
-            parent.applyHighlighting(to: textView)
+        }
+
+        func textStorage(
+            _ textStorage: NSTextStorage,
+            didProcessEditing editedMask: NSTextStorageEditActions,
+            range editedRange: NSRange,
+            changeInLength delta: Int
+        ) {
+            guard editedMask.contains(.editedCharacters),
+                  !isApplyingExternalText,
+                  let textView else { return }
+
+            let currentText = textStorage.string
+            let affectsFence = editTouchesFence(
+                previousText: lastHighlightedText,
+                currentText: currentText,
+                editedRange: editedRange,
+                changeInLength: delta
+            )
+            parent.applyHighlighting(
+                to: textView,
+                editedRange: editedRange,
+                rehighlightToEnd: affectsFence
+            )
+            lastHighlightedText = currentText
+        }
+
+        func handle(_ request: EditorCommandRequest?) {
+            guard let request, request.id != lastHandledCommandID else { return }
+            lastHandledCommandID = request.id
+
+            switch request.command {
+            case .bold:
+                wrapSelection(with: "**")
+            case .italic:
+                wrapSelection(with: "_")
+            case .link:
+                insertLink()
+            }
         }
 
         private func wrapSelection(with marker: String) {
@@ -221,6 +308,38 @@ struct MarkdownEditorView: NSViewRepresentable {
             textView.insertText(replacement, replacementRange: range)
             let urlStart = range.location + (selected as NSString).length + 2
             textView.setSelectedRange(NSRange(location: urlStart, length: 3))
+        }
+
+        private func editTouchesFence(
+            previousText: String,
+            currentText: String,
+            editedRange: NSRange,
+            changeInLength: Int
+        ) -> Bool {
+            line(
+                in: currentText,
+                at: editedRange
+            ).contains("```") || line(
+                in: previousText,
+                at: NSRange(
+                    location: min(
+                        editedRange.location,
+                        (previousText as NSString).length
+                    ),
+                    length: max(0, editedRange.length - changeInLength)
+                )
+            ).contains("```")
+        }
+
+        private func line(in text: String, at range: NSRange) -> String {
+            let nsText = text as NSString
+            let location = min(range.location, nsText.length)
+            let length = min(max(range.length, 0), nsText.length - location)
+            return nsText.substring(
+                with: nsText.lineRange(
+                    for: NSRange(location: location, length: length)
+                )
+            )
         }
     }
 }

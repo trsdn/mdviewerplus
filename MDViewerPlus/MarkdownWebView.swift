@@ -1,15 +1,18 @@
 import SwiftUI
 import WebKit
-import PDFKit
 
 struct MarkdownWebView: NSViewRepresentable {
     let text: String
     let fileURL: URL?
     let appearanceMode: AppearanceMode
     let zoomLevel: Double
+    let resourceRoot: URL?
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
     var onFocus: (() -> Void)?
+    var onError: ((String) -> Void)?
+    var onRelativeResources: (([String]) -> Void)?
+    var onOpenRelativeLink: ((URL) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -17,256 +20,329 @@ struct MarkdownWebView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.websiteDataStore = .nonPersistent()
+        let resourceHandler = MarkdownResourceSchemeHandler(authorizedRoot: resourceRoot)
+        config.setURLSchemeHandler(
+            resourceHandler,
+            forURLScheme: MarkdownResourceResolver.scheme
+        )
         config.userContentController.add(context.coordinator, name: "scrollHandler")
         config.userContentController.add(context.coordinator, name: "focusHandler")
 
         let injectedJS = """
+        let programmaticScroll = { generation: null };
+        window.mdviewerScrollTo = function(fraction, generation) {
+            programmaticScroll.generation = generation;
+            window.scrollTo(
+                0,
+                fraction * (document.body.scrollHeight - window.innerHeight)
+            );
+            requestAnimationFrame(function() {
+                requestAnimationFrame(function() {
+                    if (programmaticScroll.generation === generation) {
+                        programmaticScroll.generation = null;
+                    }
+                });
+            });
+        };
         window.addEventListener('scroll', function() {
-            var maxScroll = document.body.scrollHeight - window.innerHeight;
+            const maxScroll = document.body.scrollHeight - window.innerHeight;
             if (maxScroll > 0) {
-                var fraction = window.scrollY / maxScroll;
-                window.webkit.messageHandlers.scrollHandler.postMessage(fraction);
+                const generation = programmaticScroll.generation;
+                programmaticScroll.generation = null;
+                window.webkit.messageHandlers.scrollHandler.postMessage({
+                    fraction: window.scrollY / maxScroll,
+                    generation: generation
+                });
             }
         });
         window.addEventListener('mousedown', function() {
             window.webkit.messageHandlers.focusHandler.postMessage(true);
         });
         """
-        let script = WKUserScript(source: injectedJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        config.userContentController.addUserScript(script)
+        config.userContentController.addUserScript(
+            WKUserScript(
+                source: injectedJS,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
 
         let webView = WKWebView(frame: .zero, configuration: config)
+        webView.setAccessibilityIdentifier("markdownPreview")
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
-        context.coordinator.webView = webView
-        context.coordinator.pendingScrollFraction = scrollFraction
-        context.coordinator.lastText = text
-        context.coordinator.lastFileURL = fileURL
-        context.coordinator.lastAppearance = appearanceMode
-        context.coordinator.lastZoom = zoomLevel
+        webView.uiDelegate = context.coordinator
+
+        let coordinator = context.coordinator
+        coordinator.webView = webView
+        coordinator.resourceHandler = resourceHandler
+        coordinator.pendingScrollFraction = scrollFraction
+        coordinator.pendingText = text
+        coordinator.lastAppearance = appearanceMode
+        coordinator.lastZoom = zoomLevel
+        coordinator.lastResourceRoot = resourceRoot
+
         applyAppearance(to: webView)
         webView.pageZoom = zoomLevel
-        loadContent(into: webView)
+        coordinator.loadRenderPage()
         return webView
     }
 
     static func dismantleNSView(_ webView: WKWebView, coordinator: Coordinator) {
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "scrollHandler")
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "focusHandler")
+        webView.configuration.userContentController.removeScriptMessageHandler(
+            forName: "scrollHandler"
+        )
+        webView.configuration.userContentController.removeScriptMessageHandler(
+            forName: "focusHandler"
+        )
+        webView.navigationDelegate = nil
+        webView.uiDelegate = nil
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         let coordinator = context.coordinator
-        let needsReload = coordinator.lastText != text
-            || coordinator.lastFileURL != fileURL
-            || coordinator.lastAppearance != appearanceMode
-            || coordinator.lastZoom != zoomLevel
-
+        coordinator.parent = self
         coordinator.pendingScrollFraction = scrollFraction
+        if coordinator.lastResourceRoot != resourceRoot {
+            coordinator.lastResourceRoot = resourceRoot
+            coordinator.resourceHandler?.authorizedRoot = resourceRoot
+            coordinator.invalidateRender()
+        }
 
-        if needsReload {
-            coordinator.lastText = text
-            coordinator.lastFileURL = fileURL
+        if coordinator.lastAppearance != appearanceMode {
             coordinator.lastAppearance = appearanceMode
-            coordinator.lastZoom = zoomLevel
             applyAppearance(to: webView)
+        }
+
+        if coordinator.lastZoom != zoomLevel {
+            coordinator.lastZoom = zoomLevel
             webView.pageZoom = zoomLevel
-            loadContent(into: webView)
-        } else if scrollSource == .editor, coordinator.lastSyncedFraction != scrollFraction {
-            coordinator.lastSyncedFraction = scrollFraction
-            let fraction = scrollFraction
-            let js = "window.scrollTo(0, \(fraction) * (document.body.scrollHeight - window.innerHeight));"
-            coordinator.isSyncing = true
-            webView.evaluateJavaScript(js) { _, _ in
-                DispatchQueue.main.async {
-                    coordinator.isSyncing = false
-                }
-            }
+        }
+
+        coordinator.requestRender(text)
+
+        if scrollSource == .editor,
+           let command = coordinator.scrollSyncState.command(
+            forEditorFraction: scrollFraction
+           ) {
+            coordinator.scrollPreview(using: command)
         }
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var parent: MarkdownWebView
         var pendingScrollFraction: CGFloat = 0
-        var lastText: String = ""
-        var lastFileURL: URL?
+        var pendingText = ""
         var lastAppearance: AppearanceMode = .system
         var lastZoom: Double = 1.0
-        var isSyncing = false
-        var lastSyncedFraction: CGFloat = -1
+        var lastResourceRoot: URL?
+        var scrollSyncState = ScrollSyncState()
         weak var webView: WKWebView?
-        private var printObserver: NSObjectProtocol?
-        private var printWebView: WKWebView?
+        var resourceHandler: MarkdownResourceSchemeHandler?
+
+        private var isPageReady = false
+        private var lastRequestedText: String?
+        private var renderGeneration = 0
+        private let renderDebouncer = LatestValueDebouncer<String>(delay: 0.15)
 
         init(_ parent: MarkdownWebView) {
             self.parent = parent
             super.init()
-            printObserver = NotificationCenter.default.addObserver(
-                forName: .printDocument, object: nil, queue: .main
-            ) { [weak self] _ in
-                guard let self = self,
-                      let webView = self.webView,
-                      webView.window?.isKeyWindow == true else { return }
-                self.startPrint()
-            }
         }
 
         deinit {
-            if let observer = printObserver {
-                NotificationCenter.default.removeObserver(observer)
-            }
+            renderDebouncer.cancel()
         }
 
-        private static let printPageWidth: CGFloat = 595
-        private static let printPageHeight: CGFloat = 842
+        func loadRenderPage() {
+            guard let webView else { return }
 
-        private static let printCSS = """
-            body { font-size: 12px; line-height: 1.5; padding: 24px 36px; }
-            h1 { font-size: 1.8em; } h2 { font-size: 1.4em; } h3 { font-size: 1.2em; }
-            pre { font-size: 85%; padding: 12px; }
-            th, td { padding: 4px 10px; }
-            """
-
-        private static let pageBreakJS = """
-            (function() {
-                const PAGE_HEIGHT = \(printPageHeight);
-                for (let pass = 0; pass < 5; pass++) {
-                    const elements = document.querySelectorAll('#content > *');
-                    let changed = false;
-                    for (const el of elements) {
-                        const rect = el.getBoundingClientRect();
-                        if (rect.height === 0) continue;
-                        const startPage = Math.floor(rect.top / PAGE_HEIGHT);
-                        const endPage = Math.floor((rect.bottom - 1) / PAGE_HEIGHT);
-                        if (startPage !== endPage && rect.height < PAGE_HEIGHT * 0.8) {
-                            const nextPageTop = (startPage + 1) * PAGE_HEIGHT;
-                            const shift = nextPageTop - rect.top;
-                            const current = parseFloat(getComputedStyle(el).marginTop) || 0;
-                            el.style.marginTop = (current + shift) + 'px';
-                            changed = true;
-                        }
-                    }
-                    if (!changed) break;
-                }
-                return document.body.scrollHeight;
-            })()
-            """
-
-        private func startPrint() {
-            guard let templateURL = Bundle.main.url(forResource: "template", withExtension: "html"),
-                  let markedURL = Bundle.main.url(forResource: "marked.min", withExtension: "js"),
-                  var html = try? String(contentsOf: templateURL, encoding: .utf8),
-                  let markedJS = try? String(contentsOf: markedURL, encoding: .utf8)
-            else { return }
-
-            let jsonData = try? JSONSerialization.data(withJSONObject: lastText, options: .fragmentsAllowed)
-            let jsonString = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-
-            html = html
-                .replacingOccurrences(of: "{{MARKED_JS}}", with: markedJS)
-                .replacingOccurrences(of: "{{MARKDOWN_CONTENT}}", with: jsonString)
-
-            // Inject print-optimized CSS
-            html = html.replacingOccurrences(
-                of: "</style>",
-                with: Self.printCSS + "\n</style>"
-            )
-
-            let config = WKWebViewConfiguration()
-            let pWebView = WKWebView(
-                frame: NSRect(x: 0, y: 0, width: Self.printPageWidth, height: Self.printPageHeight),
-                configuration: config
-            )
-            pWebView.appearance = NSAppearance(named: .aqua)
-            pWebView.navigationDelegate = self
-            self.printWebView = pWebView
-
-            if let fileDir = lastFileURL?.deletingLastPathComponent() {
-                html = html.replacingOccurrences(
-                    of: "<head>",
-                    with: "<head>\n<base href=\"\(fileDir.absoluteString)\">"
+            do {
+                isPageReady = false
+                lastRequestedText = nil
+                webView.loadHTMLString(
+                    try MarkdownRenderPage.makeHTML(),
+                    baseURL: MarkdownResourceResolver.baseURL
                 )
-                let tempFile = fileDir.appendingPathComponent(".mdviewerplus-print.html")
-                try? html.write(to: tempFile, atomically: true, encoding: .utf8)
-                pWebView.loadFileURL(tempFile, allowingReadAccessTo: fileDir)
-            } else {
-                pWebView.loadHTMLString(html, baseURL: templateURL.deletingLastPathComponent())
+            } catch {
+                report(error)
             }
         }
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            if webView === printWebView {
-                // Adjust content so page breaks fall between elements, then capture
-                webView.evaluateJavaScript(Self.pageBreakJS) { [weak self] result, _ in
-                    guard let self = self,
-                          let contentHeight = result as? CGFloat,
-                          contentHeight > 0 else {
-                        self?.printWebView = nil
-                        return
-                    }
-                    self.capturePages(webView: webView, contentHeight: contentHeight, pageIndex: 0,
-                                      numPages: Int(ceil(contentHeight / Self.printPageHeight)),
-                                      accumulated: PDFDocument())
-                }
-                return
-            }
+        func invalidateRender() {
+            lastRequestedText = nil
+            requestRender(pendingText, immediate: true)
+        }
 
-            let fraction = pendingScrollFraction
-            let js = "window.scrollTo(0, \(fraction) * (document.body.scrollHeight - window.innerHeight));"
+        func requestRender(_ text: String, immediate: Bool = false) {
+            pendingText = text
+            guard isPageReady,
+                  lastRequestedText != text else { return }
+
+            if immediate {
+                renderDebouncer.cancel()
+                performRender(text)
+            } else {
+                renderDebouncer.submit(text) { [weak self] latestText in
+                    self?.performRender(latestText)
+                }
+            }
+        }
+
+        private func performRender(_ text: String) {
+            guard isPageReady,
+                  pendingText == text,
+                  lastRequestedText != text,
+                  let webView else { return }
+            lastRequestedText = text
+            renderGeneration += 1
+            let generation = renderGeneration
+
+            webView.callAsyncJavaScript(
+                "return window.renderMarkdown(markdown, false);",
+                arguments: ["markdown": text],
+                in: nil,
+                in: .page
+            ) { [weak self, weak webView] result in
+                guard let self, generation == self.renderGeneration else { return }
+
+                switch result {
+                case .success(let value):
+                    self.restoreScroll(in: webView)
+                    if let values = value as? [String: Any],
+                       let resources = values["resources"] as? [String],
+                       !resources.isEmpty {
+                        self.parent.onRelativeResources?(resources)
+                    }
+                case .failure(let error):
+                    self.lastRequestedText = nil
+                    self.report(error)
+                }
+            }
+        }
+
+        func scrollPreview(using command: PreviewScrollCommand) {
+            guard let webView else { return }
+
+            let js = """
+            window.mdviewerScrollTo(\(command.fraction), \(command.generation));
+            """
             webView.evaluateJavaScript(js, completionHandler: nil)
         }
 
-        private func capturePages(webView: WKWebView, contentHeight: CGFloat, pageIndex: Int,
-                                   numPages: Int, accumulated: PDFDocument) {
-            if pageIndex >= numPages {
-                printWebView = nil
-                guard accumulated.pageCount > 0,
-                      let printOp = accumulated.printOperation(for: .shared, scalingMode: .pageScaleToFit, autoRotate: true)
-                else { return }
-                printOp.showsPrintPanel = true
-                printOp.showsProgressPanel = true
-                printOp.run()
-                return
-            }
-
-            let y = CGFloat(pageIndex) * Self.printPageHeight
-            let pdfConfig = WKPDFConfiguration()
-            pdfConfig.rect = CGRect(x: 0, y: y, width: Self.printPageWidth, height: Self.printPageHeight)
-
-            webView.createPDF(configuration: pdfConfig) { [weak self] result in
-                DispatchQueue.main.async {
-                    if case .success(let data) = result,
-                       let pagePDF = PDFDocument(data: data),
-                       let page = pagePDF.page(at: 0) {
-                        accumulated.insert(page, at: accumulated.pageCount)
-                    }
-                    self?.capturePages(webView: webView, contentHeight: contentHeight,
-                                       pageIndex: pageIndex + 1, numPages: numPages,
-                                       accumulated: accumulated)
-                }
-            }
+        private func restoreScroll(in webView: WKWebView?) {
+            guard webView === self.webView,
+                  let command = scrollSyncState.command(
+                    forEditorFraction: pendingScrollFraction,
+                    force: true
+                  ) else { return }
+            scrollPreview(using: command)
         }
 
-        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard webView === self.webView else { return }
+            isPageReady = true
+            lastRequestedText = nil
+            requestRender(pendingText, immediate: true)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFail navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            report(error)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            didFailProvisionalNavigation navigation: WKNavigation!,
+            withError error: Error
+        ) {
+            report(error)
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
             if message.name == "focusHandler" {
                 parent.onFocus?()
                 return
             }
-            guard !isSyncing, let fraction = message.body as? Double else { return }
+
+            guard let payload = message.body as? [String: Any],
+                  let fraction = (payload["fraction"] as? NSNumber)?.doubleValue else {
+                return
+            }
+            let generation = (payload["generation"] as? NSNumber)?.intValue
+            guard scrollSyncState.shouldAcceptPreviewScroll(generation: generation) else {
+                return
+            }
             parent.onFocus?()
             parent.scrollSource = .preview
             parent.scrollFraction = min(max(CGFloat(fraction), 0), 1)
         }
 
-        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
-                NSWorkspace.shared.open(url)
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if navigationAction.navigationType == .linkActivated {
+                if let url = navigationAction.request.url {
+                    openLink(url)
+                }
                 decisionHandler(.cancel)
-            } else {
-                decisionHandler(.allow)
+                return
+            }
+
+            if navigationAction.targetFrame?.isMainFrame == true,
+               let scheme = navigationAction.request.url?.scheme?.lowercased(),
+               scheme != "about",
+               scheme != MarkdownResourceResolver.scheme {
+                decisionHandler(.cancel)
+                return
+            }
+
+            decisionHandler(.allow)
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            createWebViewWith configuration: WKWebViewConfiguration,
+            for navigationAction: WKNavigationAction,
+            windowFeatures: WKWindowFeatures
+        ) -> WKWebView? {
+            if navigationAction.navigationType == .linkActivated,
+               let url = navigationAction.request.url {
+                openLink(url)
+            }
+            return nil
+        }
+
+        private func openLink(_ url: URL) {
+            if url.scheme?.lowercased() == MarkdownResourceResolver.scheme {
+                parent.onOpenRelativeLink?(url)
+                return
+            }
+
+            guard let scheme = url.scheme?.lowercased(),
+                  ["http", "https", "mailto"].contains(scheme) else { return }
+            NSWorkspace.shared.open(url)
+        }
+
+        private func report(_ error: Error) {
+            report(error.localizedDescription)
+        }
+
+        private func report(_ message: String) {
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.onError?(message)
             }
         }
+
     }
 
     private func applyAppearance(to webView: WKWebView) {
@@ -277,34 +353,6 @@ struct MarkdownWebView: NSViewRepresentable {
             webView.appearance = NSAppearance(named: .aqua)
         case .dark:
             webView.appearance = NSAppearance(named: .darkAqua)
-        }
-    }
-
-    private func loadContent(into webView: WKWebView) {
-        guard let templateURL = Bundle.main.url(forResource: "template", withExtension: "html"),
-              let markedURL = Bundle.main.url(forResource: "marked.min", withExtension: "js"),
-              var html = try? String(contentsOf: templateURL, encoding: .utf8),
-              let markedJS = try? String(contentsOf: markedURL, encoding: .utf8)
-        else { return }
-
-        let jsonData = try? JSONSerialization.data(withJSONObject: text, options: .fragmentsAllowed)
-        let jsonString = jsonData.flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-
-        html = html
-            .replacingOccurrences(of: "{{MARKED_JS}}", with: markedJS)
-            .replacingOccurrences(of: "{{MARKDOWN_CONTENT}}", with: jsonString)
-
-        if let fileDir = fileURL?.deletingLastPathComponent() {
-            // Inject <base> so relative image paths resolve against the markdown file's directory
-            html = html.replacingOccurrences(
-                of: "<head>",
-                with: "<head>\n<base href=\"\(fileDir.absoluteString)\">"
-            )
-            let tempFile = fileDir.appendingPathComponent(".mdviewerplus-preview.html")
-            try? html.write(to: tempFile, atomically: true, encoding: .utf8)
-            webView.loadFileURL(tempFile, allowingReadAccessTo: fileDir)
-        } else {
-            webView.loadHTMLString(html, baseURL: templateURL.deletingLastPathComponent())
         }
     }
 }

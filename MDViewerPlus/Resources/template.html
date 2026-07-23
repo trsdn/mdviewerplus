@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'nonce-{{CSP_NONCE}}'; style-src 'nonce-{{CSP_NONCE}}'; img-src mdviewerplus-resource:; media-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<style nonce="{{CSP_NONCE}}">
 :root {
     --color-bg: #ffffff;
     --color-fg: #24292f;
@@ -127,6 +129,18 @@ img { max-width: 100%; height: auto; }
 
 input[type="checkbox"] { margin-right: 0.5em; }
 
+html.print-mode body {
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 24px 36px;
+}
+
+html.print-mode h1 { font-size: 1.8em; }
+html.print-mode h2 { font-size: 1.4em; }
+html.print-mode h3 { font-size: 1.2em; }
+html.print-mode pre { font-size: 85%; padding: 12px; }
+html.print-mode th, html.print-mode td { padding: 4px 10px; }
+
 @media print {
     :root {
         --color-bg: #ffffff;
@@ -152,11 +166,103 @@ input[type="checkbox"] { margin-right: 0.5em; }
 </head>
 <body>
 <div id="content"></div>
-<script>{{MARKED_JS}}</script>
-<script>
-    const md = {{MARKDOWN_CONTENT}};
-    const rendered = marked.parse(md);
-    document.getElementById('content').innerHTML = rendered;
+<script nonce="{{CSP_NONCE}}">{{MARKED_JS}}</script>
+<script nonce="{{CSP_NONCE}}">{{DOMPURIFY_JS}}</script>
+<script nonce="{{CSP_NONCE}}">
+    const allowedTags = [
+        'a', 'abbr', 'b', 'blockquote', 'br', 'code', 'dd', 'del', 'details',
+        'div', 'dl', 'dt', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr',
+        'i', 'img', 'input', 'kbd', 'li', 'mark', 'ol', 'p', 'pre', 'q',
+        's', 'samp', 'small', 'span', 'strong', 'sub', 'summary', 'sup',
+        'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'time', 'tr', 'ul',
+        'var'
+    ];
+    const allowedAttributes = [
+        'alt', 'checked', 'colspan', 'datetime', 'disabled', 'href', 'open',
+        'reversed', 'rowspan', 'src', 'start', 'title', 'type'
+    ];
+    const schemePattern = /^[a-z][a-z0-9+.-]*:/i;
+
+    function isRelativeURL(value) {
+        const trimmed = value.trim();
+        return trimmed.length > 0
+            && !trimmed.startsWith('/')
+            && !trimmed.startsWith('//')
+            && !trimmed.startsWith('#')
+            && !schemePattern.test(trimmed);
+    }
+
+    function isSafeLink(value) {
+        const trimmed = value.trim();
+        return trimmed.startsWith('#')
+            || /^(https?:|mailto:)/i.test(trimmed)
+            || isRelativeURL(trimmed);
+    }
+
+    DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+        const tagName = node.nodeName.toLowerCase();
+        const attributeName = data.attrName.toLowerCase();
+
+        if (tagName === 'a' && attributeName === 'href') {
+            data.keepAttr = isSafeLink(data.attrValue);
+        } else if (tagName === 'img' && attributeName === 'src') {
+            data.keepAttr = isRelativeURL(data.attrValue);
+        }
+    });
+
+    function normalizeTaskCheckboxes(fragment) {
+        for (const input of fragment.querySelectorAll('input')) {
+            if ((input.getAttribute('type') || '').toLowerCase() !== 'checkbox') {
+                input.remove();
+                continue;
+            }
+
+            const checked = input.hasAttribute('checked');
+            for (const attribute of Array.from(input.attributes)) {
+                input.removeAttribute(attribute.name);
+            }
+            input.setAttribute('type', 'checkbox');
+            input.setAttribute('disabled', '');
+            if (checked) input.setAttribute('checked', '');
+        }
+    }
+
+    window.renderMarkdown = function(markdown, printMode = false) {
+        document.documentElement.classList.toggle('print-mode', printMode);
+        const rawHTML = marked.parse(markdown, { gfm: true });
+        const fragment = DOMPurify.sanitize(rawHTML, {
+            ALLOWED_TAGS: allowedTags,
+            ALLOWED_ATTR: allowedAttributes,
+            ALLOW_ARIA_ATTR: false,
+            ALLOW_DATA_ATTR: false,
+            RETURN_DOM_FRAGMENT: true
+        });
+
+        normalizeTaskCheckboxes(fragment);
+
+        const content = document.getElementById('content');
+        content.replaceChildren(fragment);
+
+        return {
+            resources: Array.from(content.querySelectorAll('img[src]'))
+                .map((image) => image.getAttribute('src')),
+            height: document.body.scrollHeight
+        };
+    };
+
+    window.waitForResources = function(timeoutMilliseconds = 3000) {
+        const images = Array.from(document.images);
+        return Promise.all(images.map((image) => {
+            if (image.complete) return Promise.resolve();
+
+            return new Promise((resolve) => {
+                const finish = () => resolve();
+                image.addEventListener('load', finish, { once: true });
+                image.addEventListener('error', finish, { once: true });
+                setTimeout(finish, timeoutMilliseconds);
+            });
+        }));
+    };
 </script>
 </body>
 </html>

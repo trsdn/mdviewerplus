@@ -35,7 +35,10 @@ fi
 rm -rf "$BUILD_ROOT" "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 
-settings=(ENABLE_HARDENED_RUNTIME=YES)
+settings=(
+  ENABLE_HARDENED_RUNTIME=YES
+  CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
+)
 if [[ -n "$identity" ]]; then
   settings+=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$identity" OTHER_CODE_SIGN_FLAGS="--timestamp")
   if [[ -n "${TEAM_ID:-}" ]]; then

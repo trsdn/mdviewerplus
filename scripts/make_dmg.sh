@@ -24,5 +24,8 @@ identity="${CODE_SIGN_IDENTITY:-}"
 if [[ -z "$identity" ]]; then identity="$(security find-identity -v -p codesigning 2>/dev/null | grep 'Developer ID Application' | head -1 | sed 's/.*"\(.*\)"/\1/' || true)"; fi
 if [[ -n "$identity" ]]; then codesign --force --sign "$identity" --timestamp "$DMG_PATH"; codesign --verify --strict --verbose=2 "$DMG_PATH"; fi
 hdiutil verify "$DMG_PATH"
-shasum -a 256 "$DMG_PATH" > "$DMG_PATH.sha256"
+(
+  cd "$(dirname "$DMG_PATH")"
+  shasum -a 256 "$(basename "$DMG_PATH")" > "$(basename "$DMG_PATH").sha256"
+)
 echo "DMG created: $DMG_PATH"

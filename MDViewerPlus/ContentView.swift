@@ -59,6 +59,9 @@ struct ContentView: View {
     @Binding var document: MarkdownDocument
     let fileURL: URL?
     let appearanceMode: AppearanceMode
+    let lightThemeID: String
+    let darkThemeID: String
+    @Environment(\.colorScheme) private var systemColorScheme
     @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
     @AppStorage("editorFontSize") private var editorFontSize: Double = 14.0
     @State private var viewMode: ViewMode = .view
@@ -76,6 +79,15 @@ struct ContentView: View {
     @StateObject private var windowState = DocumentWindowState()
     @StateObject private var printController = MarkdownPrintController()
 
+    private var palette: ThemePalette {
+        ThemeRegistry.resolve(
+            appearanceMode: appearanceMode,
+            lightThemeID: lightThemeID,
+            darkThemeID: darkThemeID,
+            systemColorScheme: systemColorScheme
+        )
+    }
+
     var body: some View {
         Group {
             switch viewMode {
@@ -83,7 +95,7 @@ struct ContentView: View {
                 MarkdownWebView(
                     text: document.text,
                     fileURL: fileURL,
-                    appearanceMode: appearanceMode,
+                    palette: palette,
                     zoomLevel: zoomLevel,
                     resourceRoot: folderAccess?.rootURL,
                     scrollFraction: $scrollFraction,
@@ -97,7 +109,7 @@ struct ContentView: View {
                 HSplitView {
                     MarkdownEditorView(
                         text: $document.text,
-                        appearanceMode: appearanceMode,
+                        palette: palette,
                         fontSize: CGFloat(editorFontSize),
                         scrollFraction: $scrollFraction,
                         scrollSource: $scrollSource,
@@ -108,7 +120,7 @@ struct ContentView: View {
                     MarkdownWebView(
                         text: document.text,
                         fileURL: fileURL,
-                        appearanceMode: appearanceMode,
+                        palette: palette,
                         zoomLevel: zoomLevel,
                         resourceRoot: folderAccess?.rootURL,
                         scrollFraction: $scrollFraction,
@@ -120,10 +132,11 @@ struct ContentView: View {
                     )
                     .frame(minWidth: 200)
                 }
+                .background(palette.colors.splitter.swiftUIColor)
             case .edit:
                 MarkdownEditorView(
                     text: $document.text,
-                    appearanceMode: appearanceMode,
+                    palette: palette,
                     fontSize: CGFloat(editorFontSize),
                     scrollFraction: $scrollFraction,
                     scrollSource: $scrollSource,
@@ -132,6 +145,9 @@ struct ContentView: View {
                 )
             }
         }
+        .background(palette.colors.background.swiftUIColor)
+        .tint(palette.colors.splitterHover.swiftUIColor)
+        .preferredColorScheme(appearanceMode.preferredColorScheme)
         .background(DocumentWindowAccessor(state: windowState))
         .overlay(alignment: .topTrailing) {
             resourceAccessNotice

@@ -19,7 +19,7 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 - **Markdown formatting** — Bold (Cmd+B), Italic (Cmd+I), Link (Cmd+K)
 - **Secure GitHub-flavored rendering** via [marked.js](https://marked.js.org) and [DOMPurify](https://github.com/cure53/DOMPurify)
 - **Sandboxed local resources** — relative images and links work after one persisted folder authorization
-- **Dark Mode** — automatic (system), light, or dark via View > Appearance
+- **Coordinated themes** — eight trusted palettes across editor, syntax, preview, selection, and native surfaces
 - **Print** — Cmd+P prints the current document from any view mode with paginated A4 output
 - **Context-aware zoom** — Cmd+/Cmd- targets the active pane: preview in view mode, editor font in edit mode, focused pane in split mode
 - **New files** — Cmd+N creates a blank Markdown document
@@ -74,6 +74,26 @@ The GitHub release workflow builds a signed, notarized DMG on `v*` tags. Configu
 | System Appearance | `Cmd Shift 0` |
 | Light Mode | `Cmd Shift 1` |
 | Dark Mode | `Cmd Shift 2` |
+
+## Appearance and themes
+
+Choose **MDViewer+ > Settings** to select an appearance mode plus one preferred
+light and dark palette. System mode reacts to the current macOS appearance.
+The View > Appearance commands and `Cmd Shift 0/1/2` shortcuts remain unchanged.
+
+- **Light:** GitHub Light, Solarized Light, Sepia
+- **Dark:** GitHub Dark, Solarized Dark, Dracula, Monokai, Nord
+
+Theme changes update the editor and preview together without re-rendering the
+document. Text-bearing palette colors meet WCAG AA contrast of at least 4.5:1.
+Printing always uses its dedicated white, high-contrast palette.
+
+Special thanks to [@asherweintraub](https://github.com/asherweintraub) and the
+[asherweintraub/mdviewer](https://github.com/asherweintraub/mdviewer) fork for
+the theme/settings inspiration, and to
+[@ulfendk](https://github.com/ulfendk) and the
+[ulfendk/mdviewer](https://github.com/ulfendk/mdviewer) fork for the Sepia
+inspiration.
 
 ## Dependencies
 

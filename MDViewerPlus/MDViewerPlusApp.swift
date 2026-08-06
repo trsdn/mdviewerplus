@@ -1,29 +1,21 @@
 import SwiftUI
 
-enum AppearanceMode: String, CaseIterable {
-    case system = "system"
-    case light = "light"
-    case dark = "dark"
-
-    var label: String {
-        switch self {
-        case .system: return "System"
-        case .light: return "Light"
-        case .dark: return "Dark"
-        }
-    }
-}
-
 @main
 struct MDViewerPlusApp: App {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
+    @AppStorage("lightThemeID") private var lightThemeID: String =
+        ThemeRegistry.defaultLightThemeID.rawValue
+    @AppStorage("darkThemeID") private var darkThemeID: String =
+        ThemeRegistry.defaultDarkThemeID.rawValue
 
     var body: some Scene {
         DocumentGroup(newDocument: MarkdownDocument()) { file in
             ContentView(
                 document: file.$document,
                 fileURL: file.fileURL,
-                appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system
+                appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system,
+                lightThemeID: lightThemeID,
+                darkThemeID: darkThemeID
             )
         }
         .commands {
@@ -46,6 +38,10 @@ struct MDViewerPlusApp: App {
                     }
                 }
             }
+        }
+
+        Settings {
+            ThemeSettingsView()
         }
     }
 

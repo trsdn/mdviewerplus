@@ -2,38 +2,28 @@ import AppKit
 
 struct MarkdownSyntaxHighlighter {
     let baseFont: NSFont
-    let isDark: Bool
+    let palette: MarkdownSyntaxPalette
 
     // MARK: - Colors
 
     private var textColor: NSColor {
-        isDark
-            ? NSColor(red: 0.902, green: 0.929, blue: 0.953, alpha: 1.0)
-            : NSColor(red: 0.141, green: 0.161, blue: 0.184, alpha: 1.0)
+        palette.text.nsColor
     }
 
     private var accentColor: NSColor {
-        isDark
-            ? NSColor(red: 0.345, green: 0.651, blue: 1.0, alpha: 1.0)   // #58a6ff
-            : NSColor(red: 0.035, green: 0.412, blue: 0.855, alpha: 1.0) // #0969da
+        palette.accent.nsColor
     }
 
     private var codeColor: NSColor {
-        isDark
-            ? NSColor(red: 0.902, green: 0.929, blue: 0.953, alpha: 0.85)
-            : NSColor(red: 0.141, green: 0.161, blue: 0.184, alpha: 0.85)
+        palette.code.nsColor
     }
 
     private var codeBgColor: NSColor {
-        isDark
-            ? NSColor(red: 0.086, green: 0.106, blue: 0.133, alpha: 1.0) // #161b22
-            : NSColor(red: 0.965, green: 0.973, blue: 0.980, alpha: 1.0) // #f6f8fa
+        palette.codeBackground.nsColor
     }
 
     private var mutedColor: NSColor {
-        isDark
-            ? NSColor(red: 0.545, green: 0.580, blue: 0.620, alpha: 1.0) // #8b949e
-            : NSColor(red: 0.396, green: 0.427, blue: 0.463, alpha: 1.0) // #656d76
+        palette.muted.nsColor
     }
 
     // MARK: - Fonts

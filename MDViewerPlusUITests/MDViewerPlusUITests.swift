@@ -43,6 +43,26 @@ final class MDViewerPlusUITests: XCTestCase {
         XCTAssertFalse(otherWindow.descendants(matching: .any)["markdownEditor"].exists)
     }
 
+    func testThemeShortcutPreservesSplitModeAndUnsavedText() {
+        let app = XCUIApplication()
+        launchDocument(in: app)
+        toggleEditMode(in: app)
+
+        let editor = app.descendants(matching: .any)["markdownEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.click()
+        editor.typeText("unsaved theme text")
+
+        app.typeKey("2", modifierFlags: [.command, .shift])
+
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        XCTAssertTrue((editor.value as? String)?.contains("unsaved theme text") == true)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["markdownPreview"]
+                .waitForExistence(timeout: 5)
+        )
+    }
+
     private func toggleEditMode(in app: XCUIApplication) {
         let editMenu = app.menuBars.menuBarItems["Edit"]
         XCTAssertTrue(editMenu.waitForExistence(timeout: 5))

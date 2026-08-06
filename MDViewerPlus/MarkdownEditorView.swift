@@ -3,7 +3,7 @@ import AppKit
 
 struct MarkdownEditorView: NSViewRepresentable {
     @Binding var text: String
-    var appearanceMode: AppearanceMode = .system
+    let palette: ThemePalette
     var fontSize: CGFloat = 14
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
@@ -53,7 +53,7 @@ struct MarkdownEditorView: NSViewRepresentable {
         applyHighlighting(to: textView)
         context.coordinator.lastHighlightedText = text
         context.coordinator.lastFontSize = fontSize
-        context.coordinator.lastIsDark = isDark()
+        context.coordinator.lastPaletteID = palette.id
         textView.textStorage?.delegate = context.coordinator
 
         scrollView.contentView.postsBoundsChangedNotifications = true
@@ -80,14 +80,17 @@ struct MarkdownEditorView: NSViewRepresentable {
             requiresFullHighlight = true
         }
 
-        let dark = isDark()
-        if coordinator.lastFontSize != fontSize || coordinator.lastIsDark != dark {
+        if coordinator.lastFontSize != fontSize {
             coordinator.lastFontSize = fontSize
-            coordinator.lastIsDark = dark
             textView.font = NSFont.monospacedSystemFont(
                 ofSize: fontSize,
                 weight: .regular
             )
+            requiresFullHighlight = true
+        }
+
+        if coordinator.lastPaletteID != palette.id {
+            coordinator.lastPaletteID = palette.id
             requiresFullHighlight = true
         }
 
@@ -117,24 +120,16 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
     }
 
-    private func isDark() -> Bool {
-        switch appearanceMode {
-        case .system:
-            return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        case .light:
-            return false
-        case .dark:
-            return true
-        }
-    }
-
     private func applyHighlighting(
         to textView: NSTextView,
         editedRange: NSRange? = nil,
         rehighlightToEnd: Bool = false
     ) {
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-        let highlighter = MarkdownSyntaxHighlighter(baseFont: font, isDark: isDark())
+        let highlighter = MarkdownSyntaxHighlighter(
+            baseFont: font,
+            palette: palette.syntax
+        )
         highlighter.highlight(
             textView.textStorage,
             editedRange: editedRange,
@@ -142,7 +137,7 @@ struct MarkdownEditorView: NSViewRepresentable {
         )
         textView.typingAttributes = [
             .font: font,
-            .foregroundColor: isDark() ? Self.darkFg : Self.lightFg,
+            .foregroundColor: palette.colors.foreground.nsColor,
         ]
     }
 
@@ -162,33 +157,19 @@ struct MarkdownEditorView: NSViewRepresentable {
         }
     }
 
-    private static let lightBg = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
-    private static let lightFg = NSColor(red: 0.141, green: 0.161, blue: 0.184, alpha: 1.0)
-    private static let darkBg = NSColor(red: 0.051, green: 0.067, blue: 0.090, alpha: 1.0)
-    private static let darkFg = NSColor(red: 0.902, green: 0.929, blue: 0.953, alpha: 1.0)
-
     private func applyAppearance(to scrollView: NSScrollView) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
 
-        switch appearanceMode {
-        case .system:
-            scrollView.appearance = nil
-            let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            textView.backgroundColor = isDark ? Self.darkBg : Self.lightBg
-            textView.textColor = isDark ? Self.darkFg : Self.lightFg
-            scrollView.backgroundColor = textView.backgroundColor
-        case .light:
-            scrollView.appearance = NSAppearance(named: .aqua)
-            textView.backgroundColor = Self.lightBg
-            textView.textColor = Self.lightFg
-            scrollView.backgroundColor = Self.lightBg
-        case .dark:
-            scrollView.appearance = NSAppearance(named: .darkAqua)
-            textView.backgroundColor = Self.darkBg
-            textView.textColor = Self.darkFg
-            scrollView.backgroundColor = Self.darkBg
-        }
-        textView.insertionPointColor = textView.textColor ?? .textColor
+        scrollView.appearance = palette.category.appearance
+        textView.appearance = palette.category.appearance
+        textView.backgroundColor = palette.colors.background.nsColor
+        textView.textColor = palette.colors.foreground.nsColor
+        textView.insertionPointColor = palette.colors.caret.nsColor
+        textView.selectedTextAttributes = [
+            .backgroundColor: palette.colors.selectionBackground.nsColor,
+            .foregroundColor: palette.colors.selectionForeground.nsColor,
+        ]
+        scrollView.backgroundColor = palette.colors.gutterBackground.nsColor
     }
 
     class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {
@@ -199,7 +180,7 @@ struct MarkdownEditorView: NSViewRepresentable {
         var isApplyingExternalText = false
         var lastHighlightedText = ""
         var lastFontSize: CGFloat = 0
-        var lastIsDark = false
+        var lastPaletteID: ThemeID?
         var lastHandledCommandID: UUID?
         private var notificationObservers: [NSObjectProtocol] = []
 

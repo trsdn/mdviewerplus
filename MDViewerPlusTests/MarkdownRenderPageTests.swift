@@ -161,6 +161,75 @@ final class MarkdownRenderPageTests: XCTestCase {
         XCTAssertTrue(loaded)
     }
 
+    func testThemeUpdateChangesCSSWithoutRenderingOrReplacingContent() async throws {
+        let webView = try await loadRenderPage()
+        try await render("# Preserved\n\nCurrent content", in: webView)
+        let before = try await values(
+            """
+            ({
+                html: document.getElementById('content').innerHTML,
+                renders: window.markdownRenderCount,
+                scrollX: window.scrollX,
+                scrollY: window.scrollY
+            })
+            """,
+            in: webView
+        )
+
+        let palette = ThemeRegistry.palette(
+            id: ThemeID.dracula.rawValue,
+            category: .dark
+        )
+        let applied = try await applyTheme(palette, in: webView)
+        let after = try await values(
+            """
+            ({
+                html: document.getElementById('content').innerHTML,
+                renders: window.markdownRenderCount,
+                background: getComputedStyle(document.documentElement)
+                    .getPropertyValue('--color-bg').trim(),
+                selection: getComputedStyle(document.documentElement)
+                    .getPropertyValue('--color-selection-bg').trim(),
+                colorScheme: document.documentElement.style.colorScheme,
+                scrollX: window.scrollX,
+                scrollY: window.scrollY
+            })
+            """,
+            in: webView
+        )
+
+        XCTAssertTrue(applied)
+        XCTAssertEqual(after["html"] as? String, before["html"] as? String)
+        XCTAssertEqual(int(after, "renders"), int(before, "renders"))
+        XCTAssertEqual(after["background"] as? String, "#282a36")
+        XCTAssertEqual(after["selection"] as? String, "#44475a")
+        XCTAssertEqual(after["colorScheme"] as? String, "dark")
+        XCTAssertEqual(int(after, "scrollX"), int(before, "scrollX"))
+        XCTAssertEqual(int(after, "scrollY"), int(before, "scrollY"))
+    }
+
+    func testPrintModeKeepsDedicatedPaletteIsolatedFromScreenTheme() async throws {
+        let webView = try await loadRenderPage()
+        let screenPalette = ThemeRegistry.palette(
+            id: ThemeID.nord.rawValue,
+            category: .dark
+        )
+        let applied = try await applyTheme(screenPalette, in: webView)
+        XCTAssertTrue(applied)
+
+        try await render("# Print colors", printMode: true, in: webView)
+        var colors = try await computedThemeColors(in: webView)
+        XCTAssertEqual(colors["background"] as? String, "#ffffff")
+        XCTAssertEqual(colors["foreground"] as? String, "#24292f")
+        XCTAssertEqual(colors["codeBackground"] as? String, "#f6f8fa")
+
+        try await render("# Screen colors", printMode: false, in: webView)
+        colors = try await computedThemeColors(in: webView)
+        XCTAssertEqual(colors["background"] as? String, "#2e3440")
+        XCTAssertEqual(colors["foreground"] as? String, "#eceff4")
+        XCTAssertEqual(colors["codeBackground"] as? String, "#3b4252")
+    }
+
     private func loadRenderPage(
         configuration: WKWebViewConfiguration? = nil,
         baseURL: URL? = nil
@@ -189,12 +258,44 @@ final class MarkdownRenderPageTests: XCTestCase {
         return webView
     }
 
-    private func render(_ markdown: String, in webView: WKWebView) async throws {
+    private func render(
+        _ markdown: String,
+        printMode: Bool = false,
+        in webView: WKWebView
+    ) async throws {
         _ = try await webView.callAsyncJavaScript(
-            "return window.renderMarkdown(markdown, false);",
-            arguments: ["markdown": markdown],
+            "return window.renderMarkdown(markdown, printMode);",
+            arguments: ["markdown": markdown, "printMode": printMode],
             in: nil,
             contentWorld: .page
+        )
+    }
+
+    private func applyTheme(
+        _ palette: ThemePalette,
+        in webView: WKWebView
+    ) async throws -> Bool {
+        try await webView.callAsyncJavaScript(
+            "return window.applyTheme(theme);",
+            arguments: ["theme": palette.webTheme],
+            in: nil,
+            contentWorld: .page
+        ) as? Bool == true
+    }
+
+    private func computedThemeColors(in webView: WKWebView) async throws -> [String: Any] {
+        try await values(
+            """
+            (() => {
+                const style = getComputedStyle(document.documentElement);
+                return {
+                    background: style.getPropertyValue('--color-bg').trim(),
+                    foreground: style.getPropertyValue('--color-fg').trim(),
+                    codeBackground: style.getPropertyValue('--color-code-bg').trim()
+                };
+            })()
+            """,
+            in: webView
         )
     }
 

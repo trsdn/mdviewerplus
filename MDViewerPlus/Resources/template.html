@@ -11,23 +11,22 @@
     --color-fg: #24292f;
     --color-border: #d0d7de;
     --color-code-bg: #f6f8fa;
+    --color-code-fg: #24292f;
     --color-link: #0969da;
     --color-blockquote-fg: #656d76;
     --color-blockquote-border: #d0d7de;
     --color-hr: #d8dee4;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --color-bg: #0d1117;
-        --color-fg: #e6edf3;
-        --color-border: #30363d;
-        --color-code-bg: #161b22;
-        --color-link: #58a6ff;
-        --color-blockquote-fg: #8b949e;
-        --color-blockquote-border: #30363d;
-        --color-hr: #21262d;
-    }
+    --color-selection-bg: #b6d7ff;
+    --color-selection-fg: #24292f;
+    --color-caret: #24292f;
+    --color-active-line: #f6f8fa;
+    --color-gutter-bg: #ffffff;
+    --color-gutter-fg: #656d76;
+    --color-splitter: #d0d7de;
+    --color-splitter-hover: #0969da;
+    --color-search-match: #fff8c5;
+    --color-search-match-selected: #b6d7ff;
+    color-scheme: light;
 }
 
 * {
@@ -43,6 +42,17 @@ body {
     margin: 0;
     padding: 32px 48px;
     word-wrap: break-word;
+    caret-color: var(--color-caret);
+}
+
+::selection {
+    color: var(--color-selection-fg);
+    background: var(--color-selection-bg);
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-splitter-hover);
+    outline-offset: 2px;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -66,6 +76,7 @@ code {
     font-family: "SF Mono", SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 85%;
     background-color: var(--color-code-bg);
+    color: var(--color-code-fg);
     padding: 0.2em 0.4em;
     border-radius: 6px;
 }
@@ -123,11 +134,41 @@ th, td {
 
 th { font-weight: 600; }
 
-tr:nth-child(2n) { background-color: var(--color-code-bg); }
-
 img { max-width: 100%; height: auto; }
 
 input[type="checkbox"] { margin-right: 0.5em; }
+
+mark {
+    color: var(--color-selection-fg);
+    background-color: var(--color-search-match);
+}
+
+mark:focus, mark:target {
+    background-color: var(--color-search-match-selected);
+}
+
+html.print-mode {
+    --color-bg: #ffffff !important;
+    --color-fg: #24292f !important;
+    --color-border: #d0d7de !important;
+    --color-code-bg: #f6f8fa !important;
+    --color-code-fg: #24292f !important;
+    --color-link: #0969da !important;
+    --color-blockquote-fg: #656d76 !important;
+    --color-blockquote-border: #d0d7de !important;
+    --color-hr: #d8dee4 !important;
+    --color-selection-bg: #b6d7ff !important;
+    --color-selection-fg: #24292f !important;
+    --color-caret: #24292f !important;
+    --color-active-line: #f6f8fa !important;
+    --color-gutter-bg: #ffffff !important;
+    --color-gutter-fg: #656d76 !important;
+    --color-splitter: #d0d7de !important;
+    --color-splitter-hover: #0969da !important;
+    --color-search-match: #fff8c5 !important;
+    --color-search-match-selected: #b6d7ff !important;
+    color-scheme: light !important;
+}
 
 html.print-mode body {
     font-size: 12px;
@@ -147,10 +188,22 @@ html.print-mode th, html.print-mode td { padding: 4px 10px; }
         --color-fg: #24292f;
         --color-border: #d0d7de;
         --color-code-bg: #f6f8fa;
+        --color-code-fg: #24292f;
         --color-link: #0969da;
         --color-blockquote-fg: #656d76;
         --color-blockquote-border: #d0d7de;
         --color-hr: #d8dee4;
+        --color-selection-bg: #b6d7ff;
+        --color-selection-fg: #24292f;
+        --color-caret: #24292f;
+        --color-active-line: #f6f8fa;
+        --color-gutter-bg: #ffffff;
+        --color-gutter-fg: #656d76;
+        --color-splitter: #d0d7de;
+        --color-splitter-hover: #0969da;
+        --color-search-match: #fff8c5;
+        --color-search-match-selected: #b6d7ff;
+        color-scheme: light;
     }
     body {
         background: white;
@@ -182,6 +235,47 @@ html.print-mode th, html.print-mode td { padding: 4px 10px; }
         'reversed', 'rowspan', 'src', 'start', 'title', 'type'
     ];
     const schemePattern = /^[a-z][a-z0-9+.-]*:/i;
+    const themeProperties = Object.freeze({
+        background: '--color-bg',
+        foreground: '--color-fg',
+        border: '--color-border',
+        codeBackground: '--color-code-bg',
+        codeForeground: '--color-code-fg',
+        link: '--color-link',
+        blockquoteForeground: '--color-blockquote-fg',
+        blockquoteBorder: '--color-blockquote-border',
+        horizontalRule: '--color-hr',
+        selectionBackground: '--color-selection-bg',
+        selectionForeground: '--color-selection-fg',
+        caret: '--color-caret',
+        activeLine: '--color-active-line',
+        gutterBackground: '--color-gutter-bg',
+        gutterForeground: '--color-gutter-fg',
+        splitter: '--color-splitter',
+        splitterHover: '--color-splitter-hover',
+        searchMatch: '--color-search-match',
+        searchMatchSelected: '--color-search-match-selected'
+    });
+    const trustedColorPattern = /^#[0-9a-f]{6}$/i;
+
+    window.applyTheme = function(theme) {
+        if (!theme || (theme.category !== 'light' && theme.category !== 'dark')) {
+            return false;
+        }
+
+        for (const token of Object.keys(themeProperties)) {
+            const value = theme[token];
+            if (typeof value !== 'string' || !trustedColorPattern.test(value)) {
+                return false;
+            }
+        }
+        for (const [token, property] of Object.entries(themeProperties)) {
+            const value = theme[token];
+            document.documentElement.style.setProperty(property, value);
+        }
+        document.documentElement.style.colorScheme = theme.category;
+        return true;
+    };
 
     function isRelativeURL(value) {
         const trimmed = value.trim();
@@ -228,6 +322,7 @@ html.print-mode th, html.print-mode td { padding: 4px 10px; }
     }
 
     window.renderMarkdown = function(markdown, printMode = false) {
+        window.markdownRenderCount = (window.markdownRenderCount || 0) + 1;
         document.documentElement.classList.toggle('print-mode', printMode);
         const rawHTML = marked.parse(markdown, { gfm: true });
         const fragment = DOMPurify.sanitize(rawHTML, {

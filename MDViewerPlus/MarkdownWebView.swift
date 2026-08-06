@@ -1,10 +1,110 @@
 import SwiftUI
 import WebKit
 
+final class WebThemeApplicationState {
+    struct Request: Equatable {
+        let generation: Int
+        let palette: ThemePalette
+    }
+
+    private(set) var desiredPalette: ThemePalette
+    private(set) var successfullyAppliedPaletteID: ThemeID?
+    private(set) var inFlightGeneration: Int?
+    private(set) var inFlightPaletteID: ThemeID?
+    private var isPageReady = false
+    private var generation = 0
+    private var consecutiveFailures = 0
+
+    init(desiredPalette: ThemePalette) {
+        self.desiredPalette = desiredPalette
+    }
+
+    func pageWillLoad() {
+        generation += 1
+        isPageReady = false
+        successfullyAppliedPaletteID = nil
+        inFlightGeneration = nil
+        inFlightPaletteID = nil
+        consecutiveFailures = 0
+    }
+
+    func pageDidBecomeReady() -> Request? {
+        isPageReady = true
+        successfullyAppliedPaletteID = nil
+        inFlightGeneration = nil
+        inFlightPaletteID = nil
+        consecutiveFailures = 0
+        return nextRequest()
+    }
+
+    func request(_ palette: ThemePalette) -> Request? {
+        if desiredPalette.id != palette.id {
+            desiredPalette = palette
+            consecutiveFailures = 0
+        } else if inFlightGeneration == nil,
+                  successfullyAppliedPaletteID != palette.id {
+            // A later SwiftUI update retries a previously exhausted request.
+            consecutiveFailures = 0
+        }
+        return nextRequest()
+    }
+
+    func complete(
+        generation: Int,
+        succeeded: Bool
+    ) -> (wasCurrent: Bool, next: Request?) {
+        guard inFlightGeneration == generation else {
+            return (false, nil)
+        }
+
+        let completedPaletteID = inFlightPaletteID
+        inFlightGeneration = nil
+        inFlightPaletteID = nil
+
+        if succeeded {
+            successfullyAppliedPaletteID = completedPaletteID
+            consecutiveFailures = 0
+            return (true, nextRequest())
+        }
+
+        guard completedPaletteID == desiredPalette.id,
+              successfullyAppliedPaletteID != desiredPalette.id,
+              consecutiveFailures == 0 else {
+            return (true, nextRequest(allowFailureRetry: false))
+        }
+
+        consecutiveFailures = 1
+        return (true, nextRequest())
+    }
+
+    func isCurrent(_ request: Request) -> Bool {
+        inFlightGeneration == request.generation
+            && inFlightPaletteID == request.palette.id
+    }
+
+    private func nextRequest(allowFailureRetry: Bool = true) -> Request? {
+        guard isPageReady,
+              inFlightGeneration == nil,
+              successfullyAppliedPaletteID != desiredPalette.id,
+              allowFailureRetry || consecutiveFailures == 0 else {
+            return nil
+        }
+
+        generation += 1
+        let request = Request(
+            generation: generation,
+            palette: desiredPalette
+        )
+        inFlightGeneration = request.generation
+        inFlightPaletteID = request.palette.id
+        return request
+    }
+}
+
 struct MarkdownWebView: NSViewRepresentable {
     let text: String
     let fileURL: URL?
-    let appearanceMode: AppearanceMode
+    let palette: ThemePalette
     let zoomLevel: Double
     let resourceRoot: URL?
     @Binding var scrollFraction: CGFloat
@@ -79,11 +179,10 @@ struct MarkdownWebView: NSViewRepresentable {
         coordinator.resourceHandler = resourceHandler
         coordinator.pendingScrollFraction = scrollFraction
         coordinator.pendingText = text
-        coordinator.lastAppearance = appearanceMode
         coordinator.lastZoom = zoomLevel
         coordinator.lastResourceRoot = resourceRoot
 
-        applyAppearance(to: webView)
+        applyNativeAppearance(to: webView)
         webView.pageZoom = zoomLevel
         coordinator.loadRenderPage()
         return webView
@@ -110,10 +209,10 @@ struct MarkdownWebView: NSViewRepresentable {
             coordinator.invalidateRender()
         }
 
-        if coordinator.lastAppearance != appearanceMode {
-            coordinator.lastAppearance = appearanceMode
-            applyAppearance(to: webView)
+        if coordinator.desiredPalette.id != palette.id {
+            applyNativeAppearance(to: webView)
         }
+        coordinator.requestTheme(palette)
 
         if coordinator.lastZoom != zoomLevel {
             coordinator.lastZoom = zoomLevel
@@ -134,7 +233,6 @@ struct MarkdownWebView: NSViewRepresentable {
         var parent: MarkdownWebView
         var pendingScrollFraction: CGFloat = 0
         var pendingText = ""
-        var lastAppearance: AppearanceMode = .system
         var lastZoom: Double = 1.0
         var lastResourceRoot: URL?
         var scrollSyncState = ScrollSyncState()
@@ -144,10 +242,18 @@ struct MarkdownWebView: NSViewRepresentable {
         private var isPageReady = false
         private var lastRequestedText: String?
         private var renderGeneration = 0
+        private let themeState: WebThemeApplicationState
         private let renderDebouncer = LatestValueDebouncer<String>(delay: 0.15)
+
+        var desiredPalette: ThemePalette {
+            themeState.desiredPalette
+        }
 
         init(_ parent: MarkdownWebView) {
             self.parent = parent
+            themeState = WebThemeApplicationState(
+                desiredPalette: parent.palette
+            )
             super.init()
         }
 
@@ -161,6 +267,7 @@ struct MarkdownWebView: NSViewRepresentable {
             do {
                 isPageReady = false
                 lastRequestedText = nil
+                themeState.pageWillLoad()
                 webView.loadHTMLString(
                     try MarkdownRenderPage.makeHTML(),
                     baseURL: MarkdownResourceResolver.baseURL
@@ -173,6 +280,64 @@ struct MarkdownWebView: NSViewRepresentable {
         func invalidateRender() {
             lastRequestedText = nil
             requestRender(pendingText, immediate: true)
+        }
+
+        func requestTheme(_ palette: ThemePalette) {
+            if let request = themeState.request(palette) {
+                performThemeRequest(request)
+            }
+        }
+
+        private func performThemeRequest(
+            _ request: WebThemeApplicationState.Request,
+            after delay: TimeInterval = 0
+        ) {
+            guard let webView else { return }
+
+            if delay > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    guard let self, self.themeState.isCurrent(request) else { return }
+                    self.performThemeRequest(request)
+                }
+                return
+            }
+
+            webView.callAsyncJavaScript(
+                "return window.applyTheme(theme);",
+                arguments: ["theme": request.palette.webTheme],
+                in: nil,
+                in: .page
+            ) { [weak self] result in
+                guard let self else { return }
+
+                let succeeded: Bool
+                let errorMessage: String?
+                switch result {
+                case .success(let value):
+                    succeeded = (value as? Bool) == true
+                    errorMessage = succeeded
+                        ? nil
+                        : "The preview rejected the selected theme."
+                case .failure(let error):
+                    succeeded = false
+                    errorMessage = error.localizedDescription
+                }
+
+                let completion = self.themeState.complete(
+                    generation: request.generation,
+                    succeeded: succeeded
+                )
+                guard completion.wasCurrent else { return }
+
+                if let next = completion.next {
+                    self.performThemeRequest(next, after: succeeded ? 0 : 0.05)
+                } else if !succeeded,
+                          self.themeState.successfullyAppliedPaletteID
+                            != self.themeState.desiredPalette.id,
+                          let errorMessage {
+                    self.report(errorMessage)
+                }
+            }
         }
 
         func requestRender(_ text: String, immediate: Bool = false) {
@@ -244,6 +409,9 @@ struct MarkdownWebView: NSViewRepresentable {
             guard webView === self.webView else { return }
             isPageReady = true
             lastRequestedText = nil
+            if let request = themeState.pageDidBecomeReady() {
+                performThemeRequest(request)
+            }
             requestRender(pendingText, immediate: true)
         }
 
@@ -345,14 +513,8 @@ struct MarkdownWebView: NSViewRepresentable {
 
     }
 
-    private func applyAppearance(to webView: WKWebView) {
-        switch appearanceMode {
-        case .system:
-            webView.appearance = nil
-        case .light:
-            webView.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            webView.appearance = NSAppearance(named: .darkAqua)
-        }
+    private func applyNativeAppearance(to webView: WKWebView) {
+        webView.appearance = palette.category.appearance
+        webView.underPageBackgroundColor = palette.colors.background.nsColor
     }
 }

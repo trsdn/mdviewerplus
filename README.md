@@ -88,13 +88,6 @@ Theme changes update the editor and preview together without re-rendering the
 document. Text-bearing palette colors meet WCAG AA contrast of at least 4.5:1.
 Printing always uses its dedicated white, high-contrast palette.
 
-Special thanks to [@asherweintraub](https://github.com/asherweintraub) and the
-[asherweintraub/mdviewer](https://github.com/asherweintraub/mdviewer) fork for
-the theme/settings inspiration, and to
-[@ulfendk](https://github.com/ulfendk) and the
-[ulfendk/mdviewer](https://github.com/ulfendk/mdviewer) fork for the Sepia
-inspiration.
-
 ## Dependencies
 
 | Library | Version | License | Purpose |

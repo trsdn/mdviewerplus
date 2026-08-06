@@ -33,7 +33,7 @@
   "applicationCategory": "DeveloperApplication",
   "description": "A minimal macOS Markdown editor and viewer with live preview, GitHub-style rendering, and eight coordinated themes.",
   "fileSize": "1.5MB",
-  "softwareVersion": "1.4.0",
+  "softwareVersion": "1.5.0",
   "license": "https://opensource.org/licenses/MIT",
   "url": "https://trsdn.github.io/mdviewerplus/",
   "downloadUrl": "https://github.com/trsdn/mdviewerplus/releases/latest",
@@ -691,6 +691,11 @@ footer a:hover { color: var(--fg); }
                 <h3>Native print</h3>
                 <p>&#8984;P prints the current document from view, split, or edit-only mode into paginated A4 pages with smart page breaks.</p>
             </article>
+            <article class="feature">
+                <p class="feature-num">09</p>
+                <h3>Sibling file navigation</h3>
+                <p>Authorize a document folder once, then move to the previous or next Markdown file by filename with &#8984;&#8997;&larr;/&rarr;. Refresh Sibling Navigation or Reload rescans added and removed files. Reload stays silent without folder access; only explicit Enable/Refresh requests access or reports folder errors. Navigation never wraps, and edited documents stay open.</p>
+            </article>
         </div>
     </section>
 
@@ -746,6 +751,14 @@ footer a:hover { color: var(--fg); }
             <li class="shortcut-item">
                 <span class="shortcut-action">New file</span>
                 <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">N</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Previous Markdown file</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&#8997;</kbd><kbd class="key">&larr;</kbd></span>
+            </li>
+            <li class="shortcut-item">
+                <span class="shortcut-action">Next Markdown file</span>
+                <span class="shortcut-keys"><kbd class="key">&#8984;</kbd><kbd class="key">&#8997;</kbd><kbd class="key">&rarr;</kbd></span>
             </li>
             <li class="shortcut-item">
                 <span class="shortcut-action">Save</span>

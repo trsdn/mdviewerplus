@@ -14,7 +14,14 @@ struct EditorCommandRequest: Equatable {
 struct DocumentCommandActions {
     let canReload: Bool
     let canFormat: Bool
+    let canNavigatePrevious: Bool
+    let canNavigateNext: Bool
+    let canPrepareNavigation: Bool
+    let navigationPreparationTitle: String
     let reload: () -> Void
+    let navigatePrevious: () -> Void
+    let navigateNext: () -> Void
+    let prepareNavigation: () -> Void
     let toggleEditMode: () -> Void
     let zoomIn: () -> Void
     let zoomOut: () -> Void
@@ -44,6 +51,28 @@ struct DocumentCommands: Commands {
             }
             .keyboardShortcut("p", modifiers: .command)
             .disabled(actions == nil)
+        }
+
+        CommandGroup(after: .newItem) {
+            Button(
+                actions?.navigationPreparationTitle
+                    ?? "Enable Sibling Navigation…"
+            ) {
+                actions?.prepareNavigation()
+            }
+            .disabled(actions?.canPrepareNavigation != true)
+
+            Button("Previous Markdown File") {
+                actions?.navigatePrevious()
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+            .disabled(actions?.canNavigatePrevious != true)
+
+            Button("Next Markdown File") {
+                actions?.navigateNext()
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            .disabled(actions?.canNavigateNext != true)
         }
 
         CommandGroup(after: .toolbar) {

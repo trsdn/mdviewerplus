@@ -63,6 +63,25 @@ final class MDViewerPlusUITests: XCTestCase {
         )
     }
 
+    func testSiblingCommandsArePresentAndDisabledForNewDocument() {
+        let app = XCUIApplication()
+        launchDocument(in: app)
+
+        let fileMenu = app.menuBars.menuBarItems["File"]
+        XCTAssertTrue(fileMenu.waitForExistence(timeout: 5))
+        fileMenu.click()
+
+        let enable = fileMenu.menus.menuItems["Enable Sibling Navigation…"]
+        let previous = fileMenu.menus.menuItems["Previous Markdown File"]
+        let next = fileMenu.menus.menuItems["Next Markdown File"]
+        XCTAssertTrue(enable.waitForExistence(timeout: 5))
+        XCTAssertTrue(previous.waitForExistence(timeout: 5))
+        XCTAssertTrue(next.waitForExistence(timeout: 5))
+        XCTAssertFalse(enable.isEnabled)
+        XCTAssertFalse(previous.isEnabled)
+        XCTAssertFalse(next.isEnabled)
+    }
+
     private func toggleEditMode(in app: XCUIApplication) {
         let editMenu = app.menuBars.menuBarItems["Edit"]
         XCTAssertTrue(editMenu.waitForExistence(timeout: 5))

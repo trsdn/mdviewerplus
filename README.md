@@ -23,6 +23,7 @@ A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and
 - **Print** — Cmd+P prints the current document from any view mode with paginated A4 output
 - **Context-aware zoom** — Cmd+/Cmd- targets the active pane: preview in view mode, editor font in edit mode, focused pane in split mode
 - **New files** — Cmd+N creates a blank Markdown document
+- **Sibling navigation** — Cmd+Option+Left/Right opens the previous or next Markdown file by filename without wrapping
 - **Native file handling** — Open, Save, Recent Files, drag & drop
 - **About 1.5 MB total** — no Electron or external runtime
 
@@ -67,6 +68,8 @@ The GitHub release workflow builds a signed, notarized DMG on `v*` tags. Configu
 | Link | `Cmd K` |
 | Save | `Cmd S` |
 | New File | `Cmd N` |
+| Previous Markdown File | `Cmd Option Left` |
+| Next Markdown File | `Cmd Option Right` |
 | Reload | `Cmd R` |
 | Zoom In | `Cmd +` |
 | Zoom Out | `Cmd -` |
@@ -102,6 +105,14 @@ No Swift package dependencies or third-party native frameworks. JavaScript depen
 Release builds use the macOS App Sandbox and Hardened Runtime. Rendered HTML is sanitized, remote embedded resources are blocked, and external links open in their default app.
 
 Relative images and local links require access to the Markdown document’s folder. MDViewer+ asks once, stores an app-scoped security bookmark, and limits WebKit reads to raster images inside that authorized folder.
+
+Sibling navigation uses the same persisted folder authorization. Choose **File >
+Enable Sibling Navigation…** once for a folder; normal document opening never
+prompts for navigation access. After authorization, the command becomes
+**Refresh Sibling Navigation**. It and **Reload** rescan the folder so newly
+added or removed Markdown files are reflected at the navigation boundaries.
+Reload stays silent when folder access is unavailable; only the explicit
+Enable/Refresh command requests access or reports folder-access errors.
 
 ## License
 

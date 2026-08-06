@@ -15,6 +15,54 @@ enum FolderAccessError: LocalizedError {
     }
 }
 
+enum FolderAccessPurpose: Equatable {
+    case relativeResources
+    case siblingNavigation
+
+    func panelMessage(for documentURL: URL) -> String {
+        switch self {
+        case .relativeResources:
+            return "Choose the folder containing \(documentURL.lastPathComponent) to load relative images and open relative links."
+        case .siblingNavigation:
+            return "Choose the folder containing \(documentURL.lastPathComponent) to navigate between Markdown files."
+        }
+    }
+}
+
+enum FolderAccessTrigger {
+    case documentPreflight
+    case explicitNavigation
+    case relativeResourceRequest
+}
+
+enum FolderAccessAuthorizationDecision: Equatable {
+    case useRestoredAccess
+    case unavailable
+    case requestAccess
+}
+
+struct FolderAccessAuthorizationPolicy {
+    static func decision(
+        for trigger: FolderAccessTrigger,
+        hasRestoredAccess: Bool
+    ) -> FolderAccessAuthorizationDecision {
+        if hasRestoredAccess {
+            return .useRestoredAccess
+        }
+
+        switch trigger {
+        case .documentPreflight:
+            return .unavailable
+        case .explicitNavigation, .relativeResourceRequest:
+            return .requestAccess
+        }
+    }
+
+    static func navigationAvailable(afterAccessWasGranted granted: Bool) -> Bool {
+        granted
+    }
+}
+
 final class FolderAccessLease {
     let rootURL: URL
     private let securityScopedURL: URL
@@ -95,12 +143,13 @@ final class FolderAccessStore {
 
     func requestAccess(
         for documentURL: URL,
+        purpose: FolderAccessPurpose,
         attachedTo window: NSWindow?
     ) async throws -> FolderAccessLease? {
         let expectedRoot = canonicalFolder(for: documentURL)
         let panel = NSOpenPanel()
         panel.title = "Grant Folder Access"
-        panel.message = "Choose the folder containing \(documentURL.lastPathComponent) to load relative images and open relative links."
+        panel.message = purpose.panelMessage(for: documentURL)
         panel.prompt = "Grant Access"
         panel.directoryURL = expectedRoot
         panel.canChooseFiles = false

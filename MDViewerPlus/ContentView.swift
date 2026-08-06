@@ -62,6 +62,7 @@ struct ContentView: View {
     let lightThemeID: String
     let darkThemeID: String
     @Environment(\.colorScheme) private var systemColorScheme
+    @Environment(\.openDocument) private var openDocument
     @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
     @AppStorage("editorFontSize") private var editorFontSize: Double = 14.0
     @State private var viewMode: ViewMode = .view
@@ -76,6 +77,8 @@ struct ContentView: View {
     @State private var isRequestingResourceAccess = false
     @State private var resourceAccessGeneration = 0
     @State private var pendingRelativeLink: URL?
+    @State private var siblingFiles = MarkdownSiblingFiles.unavailable
+    @State private var isNavigating = false
     @StateObject private var windowState = DocumentWindowState()
     @StateObject private var printController = MarkdownPrintController()
 
@@ -181,7 +184,19 @@ struct ContentView: View {
         DocumentCommandActions(
             canReload: fileURL != nil,
             canFormat: canFormat,
+            canNavigatePrevious: siblingFiles.previous != nil && !isNavigating,
+            canNavigateNext: siblingFiles.next != nil && !isNavigating,
+            canPrepareNavigation: fileURL != nil
+                && !isNavigating
+                && !isRequestingResourceAccess,
+            navigationPreparationTitle:
+                SiblingNavigationFreshnessPolicy.preparationCommandTitle(
+                    hasFolderAccess: folderAccess != nil
+                ),
             reload: reload,
+            navigatePrevious: { navigate(to: .previous) },
+            navigateNext: { navigate(to: .next) },
+            prepareNavigation: prepareSiblingNavigation,
             toggleEditMode: toggleEditMode,
             zoomIn: { handleZoom(.zoomIn) },
             zoomOut: { handleZoom(.zoomOut) },
@@ -216,7 +231,7 @@ struct ContentView: View {
                 if fileURL != nil {
                     Button(resourceAccessDeclined ? "Grant Access" : "Choose Folder") {
                         resourceAccessDeclined = false
-                        requestFolderAccess()
+                        requestFolderAccess(for: .relativeResources)
                     }
                     .disabled(isRequestingResourceAccess)
                 }
@@ -269,6 +284,9 @@ struct ContentView: View {
 
     private func reload() {
         guard let url = fileURL else { return }
+        defer {
+            updateSiblingNavigation(for: .reload)
+        }
 
         do {
             let diskText = try String(contentsOf: url, encoding: .utf8)
@@ -290,6 +308,113 @@ struct ContentView: View {
                 message: error.localizedDescription
             )
         }
+    }
+
+    private func refreshSiblingFiles(reportErrors: Bool) {
+        guard let fileURL, let folderAccess else {
+            siblingFiles = .unavailable
+            return
+        }
+
+        do {
+            siblingFiles = try MarkdownSiblingNavigator.siblings(
+                of: fileURL,
+                in: folderAccess.rootURL
+            )
+        } catch {
+            siblingFiles = .unavailable
+            if reportErrors {
+                showNavigationError(
+                    title: "Couldn’t List Markdown Files",
+                    error: error
+                )
+            }
+        }
+    }
+
+    private func navigate(to direction: MarkdownSiblingDirection) {
+        guard !isNavigating,
+              let fileURL,
+              let navigationAccess = folderAccess else { return }
+        isNavigating = true
+
+        Task { @MainActor in
+            defer {
+                // Extend the security-scoped lease through the awaited native open.
+                _ = navigationAccess
+                isNavigating = false
+            }
+
+            let destination: URL
+            do {
+                guard let siblingURL = try MarkdownSiblingNavigator.destination(
+                    from: fileURL,
+                    in: navigationAccess.rootURL,
+                    direction: direction
+                ) else {
+                    refreshSiblingFiles(reportErrors: false)
+                    return
+                }
+                destination = siblingURL
+            } catch {
+                refreshSiblingFiles(reportErrors: false)
+                showNavigationError(
+                    title: "Couldn’t List Markdown Files",
+                    error: error
+                )
+                return
+            }
+
+            let sourceWindow = windowState.window
+
+            do {
+                try await SecurityScopedLeaseLifetime.retaining(
+                    navigationAccess
+                ) {
+                    try await openDocument(at: destination)
+                }
+                DocumentOpeningPolicy.handleSuccessfulOpen(
+                    sourceWindow: sourceWindow
+                )
+            } catch {
+                siblingFiles = SiblingNavigationTargetPolicy.afterOpenFailure(
+                    currentTargets: siblingFiles
+                )
+                showNavigationError(
+                    title: "Couldn’t Open Markdown File",
+                    error: error
+                )
+            }
+        }
+    }
+
+    private func prepareSiblingNavigation() {
+        updateSiblingNavigation(for: .explicitPreparation)
+    }
+
+    private func updateSiblingNavigation(
+        for event: SiblingNavigationFreshnessEvent
+    ) {
+        let action = SiblingNavigationFreshnessPolicy.action(
+            for: event,
+            hasFolderAccess: folderAccess != nil
+        )
+
+        switch action {
+        case .clearSilently:
+            siblingFiles = .unavailable
+        case .enumerateSilently, .enumerateReportingErrors:
+            refreshSiblingFiles(reportErrors: action.reportsErrors)
+        case .requestAuthorization:
+            requestFolderAccess(for: .siblingNavigation)
+        }
+    }
+
+    private func showNavigationError(title: String, error: Error) {
+        documentAlert = .error(
+            title: title,
+            message: error.localizedDescription
+        )
     }
 
     private func showRenderError(_ message: String) {
@@ -318,7 +443,7 @@ struct ContentView: View {
         guard folderAccess == nil,
               fileURL != nil,
               !resourceAccessDeclined else { return }
-        requestFolderAccess()
+        requestFolderAccess(for: .relativeResources)
     }
 
     private func restoreFolderAccess() {
@@ -327,7 +452,7 @@ struct ContentView: View {
         do {
             folderAccess = try FolderAccessStore.shared.restoredAccess(for: fileURL)
         } catch {
-            showResourceError(error)
+            folderAccess = nil
         }
     }
 
@@ -339,9 +464,18 @@ struct ContentView: View {
         isRequestingResourceAccess = false
         pendingRelativeLink = nil
         restoreFolderAccess()
+        siblingFiles = .unavailable
+
+        let decision = FolderAccessAuthorizationPolicy.decision(
+            for: .documentPreflight,
+            hasRestoredAccess: folderAccess != nil
+        )
+        if decision == .useRestoredAccess {
+            refreshSiblingFiles(reportErrors: false)
+        }
     }
 
-    private func requestFolderAccess() {
+    private func requestFolderAccess(for purpose: FolderAccessPurpose) {
         guard !isRequestingResourceAccess, let fileURL else { return }
         isRequestingResourceAccess = true
         let generation = resourceAccessGeneration
@@ -350,20 +484,38 @@ struct ContentView: View {
             do {
                 let access = try await FolderAccessStore.shared.requestAccess(
                     for: fileURL,
+                    purpose: purpose,
                     attachedTo: windowState.window
                 )
                 guard generation == resourceAccessGeneration,
                       self.fileURL == fileURL else { return }
                 folderAccess = access
-                resourceAccessDeclined = access == nil
+                if purpose == .relativeResources {
+                    resourceAccessDeclined = access == nil
+                }
+                if FolderAccessAuthorizationPolicy.navigationAvailable(
+                    afterAccessWasGranted: access != nil
+                ) {
+                    refreshSiblingFiles(
+                        reportErrors: purpose == .siblingNavigation
+                    )
+                }
                 if let rootURL = access?.rootURL {
                     openPendingRelativeLink(under: rootURL)
                 }
             } catch {
                 guard generation == resourceAccessGeneration,
                       self.fileURL == fileURL else { return }
-                resourceAccessDeclined = true
-                showResourceError(error)
+                switch purpose {
+                case .relativeResources:
+                    resourceAccessDeclined = true
+                    showResourceError(error)
+                case .siblingNavigation:
+                    showNavigationError(
+                        title: "Couldn’t Enable Sibling Navigation",
+                        error: error
+                    )
+                }
             }
             if generation == resourceAccessGeneration {
                 isRequestingResourceAccess = false
@@ -378,7 +530,7 @@ struct ContentView: View {
         if let rootURL = folderAccess?.rootURL {
             openPendingRelativeLink(under: rootURL)
         } else if fileURL != nil, !resourceAccessDeclined {
-            requestFolderAccess()
+            requestFolderAccess(for: .relativeResources)
         }
     }
 

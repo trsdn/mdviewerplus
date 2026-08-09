@@ -8,8 +8,8 @@
     },
     {
       "path": "js-yaml.esm.min.mjs",
-      "sha256": "641ed48edab2a6ee593654ab9662fb062d349a6897c5376737c7fb5cafbf041c",
-      "bytes": 41944
+      "sha256": "5eabe59636e0008f5ccc63a7d1e214d26cdb57adb8c6070183704d9a07e5bf96",
+      "bytes": 42284
     },
     {
       "path": "mermaid/chunks/mermaid.esm.min/abnfDiagram-U6D7WRMF.mjs",

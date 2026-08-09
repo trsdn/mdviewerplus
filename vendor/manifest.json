@@ -72,9 +72,9 @@
     },
     {
       "name": "js-yaml",
-      "version": "5.2.2",
+      "version": "5.2.3",
       "license": "MIT",
-      "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.2.2.tgz",
+      "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-5.2.3.tgz",
       "homepage": "https://github.com/nodeca/js-yaml",
       "purpose": "Full YAML frontmatter parsing with the failsafe schema",
       "edition": "full",
@@ -222,8 +222,8 @@
     {
       "path": "Full/modules/js-yaml.esm.min.mjs",
       "edition": "full",
-      "bytes": 41944,
-      "sha256": "641ed48edab2a6ee593654ab9662fb062d349a6897c5376737c7fb5cafbf041c"
+      "bytes": 42284,
+      "sha256": "5eabe59636e0008f5ccc63a7d1e214d26cdb57adb8c6070183704d9a07e5bf96"
     },
     {
       "path": "Full/modules/mermaid/chunks/mermaid.esm.min/abnfDiagram-U6D7WRMF.mjs",
@@ -859,6 +859,6 @@
   "totals": {
     "common": 127396,
     "lite": 33380,
-    "full": 3944158
+    "full": 3944498
   }
 }

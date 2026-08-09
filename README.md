@@ -31,8 +31,8 @@ edition replaces the other. **Full is the recommended download.**
   accessible code-block controls
 - Eight coordinated light/dark themes and context-aware zoom
 - Dedicated print rendering that waits for images and Full lazy renderers
-- No network access, runtime downloads, Electron, Swift packages, or
-  third-party native frameworks
+- No rendered-content network access, runtime downloads, Electron, Swift
+  packages, or third-party native frameworks
 
 ## Editions and offline rendering
 
@@ -83,6 +83,8 @@ xcodebuild -scheme MDViewerPlus-Full -configuration Release build
 ## Security model
 
 - Release builds use App Sandbox and Hardened Runtime.
+- WebKit requires the sandbox network-client entitlement to launch its content
+  process, but the render-page CSP blocks all connections and remote resources.
 - A restrictive CSP blocks network connections, frames, objects, workers,
   forms, base navigation, remote images, and untrusted scripts.
 - Markdown HTML is sanitized by a narrow DOMPurify policy before insertion.
@@ -106,13 +108,18 @@ xcodebuild -scheme MDViewerPlus-Full -configuration Release build
 | marked-footnote | 1.4.0 | Common | MIT |
 | Prism | 1.30.0 | Lite | MIT |
 | highlight.js | 11.11.1 | Full | BSD-3-Clause |
-| js-yaml | 5.2.2 | Full | MIT |
+| js-yaml | 5.2.3 | Full | MIT |
 | Mermaid | 11.16.0 | Full | MIT |
 | svg-pan-zoom | 3.6.2 | Full | BSD-2-Clause |
 
 `vendor/manifest.json` records every shipped file's SHA-256, exact package
 version, source, license, and edition. `THIRD-PARTY-NOTICES.md` and the bundled
 license files contain the corresponding notices.
+
+As of 2026-08-09, `npm audit` reports two moderate upstream advisories without
+a published fixed release. MDViewer+ never enables DOMPurify `IN_PLACE`;
+Mermaid uses trusted configuration, bounded/concurrent/timed rendering, and
+separately sanitized SVG. There are no high or critical audit findings.
 
 The generated Lite-only Prism asset is 31.6 KiB minified. This is above the
 original approximate 10–20 KiB target because all eight promised language

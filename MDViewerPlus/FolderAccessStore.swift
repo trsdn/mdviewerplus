@@ -18,6 +18,7 @@ enum FolderAccessError: LocalizedError {
 enum FolderAccessPurpose: Equatable {
     case relativeResources
     case siblingNavigation
+    case navigationTools
 
     func panelMessage(for documentURL: URL) -> String {
         switch self {
@@ -25,6 +26,8 @@ enum FolderAccessPurpose: Equatable {
             return "Choose the folder containing \(documentURL.lastPathComponent) to load relative images and open relative links."
         case .siblingNavigation:
             return "Choose the folder containing \(documentURL.lastPathComponent) to navigate between Markdown files."
+        case .navigationTools:
+            return "Choose the folder containing \(documentURL.lastPathComponent) to use Quick Open, the folder watcher, and internal Markdown links."
         }
     }
 }

@@ -6,6 +6,41 @@ enum MarkdownFormatCommand: Equatable {
     case link
 }
 
+enum FindCommand: Equatable {
+    case show
+    case next
+    case previous
+    case dismiss
+}
+
+struct FindCommandRequest: Equatable {
+    let id = UUID()
+    let command: FindCommand
+}
+
+struct PreviewFindRequest: Equatable {
+    let id = UUID()
+    let query: String
+    let backwards: Bool
+    let clear: Bool
+
+    init(query: String, backwards: Bool = false, clear: Bool = false) {
+        self.query = query
+        self.backwards = backwards
+        self.clear = clear
+    }
+}
+
+struct PreviewOutlineRequest: Equatable {
+    let id = UUID()
+    let slug: String
+}
+
+struct EditorOutlineRequest: Equatable {
+    let id = UUID()
+    let location: Int
+}
+
 struct EditorCommandRequest: Equatable {
     let id = UUID()
     let command: MarkdownFormatCommand
@@ -17,6 +52,9 @@ struct DocumentCommandActions {
     let canNavigatePrevious: Bool
     let canNavigateNext: Bool
     let canPrepareNavigation: Bool
+    let canQuickOpen: Bool
+    let canShowOutline: Bool
+    let canDismissFind: Bool
     let navigationPreparationTitle: String
     let reload: () -> Void
     let navigatePrevious: () -> Void
@@ -27,6 +65,9 @@ struct DocumentCommandActions {
     let zoomOut: () -> Void
     let zoomReset: () -> Void
     let printDocument: () -> Void
+    let find: (FindCommand) -> Void
+    let quickOpen: () -> Void
+    let showOutline: () -> Void
     let format: (MarkdownFormatCommand) -> Void
 }
 
@@ -103,12 +144,52 @@ struct DocumentCommands: Commands {
             .disabled(actions == nil)
         }
 
-        CommandGroup(after: .textEditing) {
+        CommandGroup(replacing: .textEditing) {
+            Button("Find…") {
+                actions?.find(.show)
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            .disabled(actions == nil)
+
+            Button("Find Next") {
+                actions?.find(.next)
+            }
+            .keyboardShortcut("g", modifiers: .command)
+            .disabled(actions == nil)
+
+            Button("Find Previous") {
+                actions?.find(.previous)
+            }
+            .keyboardShortcut("g", modifiers: [.command, .shift])
+            .disabled(actions == nil)
+
+            Button("Dismiss Find") {
+                actions?.find(.dismiss)
+            }
+            .keyboardShortcut(.cancelAction)
+            .disabled(actions?.canDismissFind != true)
+
+            Divider()
+
             Button("Toggle Edit Mode") {
                 actions?.toggleEditMode()
             }
             .keyboardShortcut("e", modifiers: .command)
             .disabled(actions == nil)
+        }
+
+        CommandMenu("Navigate") {
+            Button("Quick Open…") {
+                actions?.quickOpen()
+            }
+            .keyboardShortcut("k", modifiers: .command)
+            .disabled(actions?.canQuickOpen != true)
+
+            Button("Document Outline…") {
+                actions?.showOutline()
+            }
+            .keyboardShortcut("o", modifiers: [.command, .shift])
+            .disabled(actions?.canShowOutline != true)
         }
 
         CommandMenu("Format") {
@@ -127,7 +208,7 @@ struct DocumentCommands: Commands {
             Button("Link") {
                 actions?.format(.link)
             }
-            .keyboardShortcut("k", modifiers: .command)
+            .keyboardShortcut("k", modifiers: [.command, .shift])
             .disabled(actions?.canFormat != true)
         }
     }

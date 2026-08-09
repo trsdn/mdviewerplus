@@ -1,118 +1,140 @@
 # MDViewer+
 
-A minimal macOS Markdown editor and viewer. Clean rendering, inline editing, and live preview — no bloat.
+A native, offline macOS Markdown editor and viewer with live preview.
 
-![macOS](https://img.shields.io/badge/macOS-13.0+-black?logo=apple)
-![Swift](https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue)
-![Size](https://img.shields.io/badge/App_Size-1.5_MB-2ea44f)
-![Memory](https://img.shields.io/badge/Memory-Low_Footprint-2ea44f)
+MDViewer+ 2.0 ships from one source tree in two editions:
 
-![MDViewer+ split view](docs/screenshot-split.png)
+| | Lite | Full |
+| --- | --- | --- |
+| Recommended for | Minimum footprint | Most users |
+| Shared native features | Find, Quick Open, secure internal links, folder watcher, outline, editing, printing | Same |
+| Shared Markdown features | Footnotes, alerts, tasks, image zoom, code controls | Same |
+| Code highlighting | Custom Prism: Swift, JavaScript/TypeScript, JSON, Bash, Python, Rust, HTML, CSS | Lazy highlight.js common-language bundle |
+| Metadata | Raw Markdown | Lazy safe YAML frontmatter card |
+| Diagrams | — | Lazy offline Mermaid with svg-pan-zoom |
 
-## Features
+Both editions use the same bundle identifier, application name, document
+associations, sandbox, and native `DocumentGroup` lifecycle. Installing one
+edition replaces the other. **Full is the recommended download.**
 
-- **Three view modes** — view-only, split (editor + preview), and edit-only, cycled with Cmd+E
-- **Live preview** — edits render responsively in the side-by-side split view
-- **Syntax highlighting** — incremental highlighting for headings, bold, italic, links, code blocks, blockquotes, and lists
-- **Scroll sync** — bidirectional scroll synchronization between editor and preview
-- **Markdown formatting** — Bold (Cmd+B), Italic (Cmd+I), Link (Cmd+K)
-- **Secure GitHub-flavored rendering** via [marked.js](https://marked.js.org) and [DOMPurify](https://github.com/cure53/DOMPurify)
-- **Sandboxed local resources** — relative images and links work after one persisted folder authorization
-- **Coordinated themes** — eight trusted palettes across editor, syntax, preview, selection, and native surfaces
-- **Print** — Cmd+P prints the current document from any view mode with paginated A4 output
-- **Context-aware zoom** — Cmd+/Cmd- targets the active pane: preview in view mode, editor font in edit mode, focused pane in split mode
-- **New files** — Cmd+N creates a blank Markdown document
-- **Sibling navigation** — Cmd+Option+Left/Right opens the previous or next Markdown file by filename without wrapping
-- **Native file handling** — Open, Save, Recent Files, drag & drop
-- **About 1.5 MB total** — no Electron or external runtime
+## Highlights
 
-## Performance
+- View, split, and edit modes with responsive live preview
+- Bidirectional editor/preview scroll synchronization
+- Focus-aware Find: native `NSTextView` Find in the editor and `WKWebView.find`
+  in the preview
+- Current-folder Quick Open with deterministic, dependency-free matching
+- Secure relative Markdown links opened through the native document lifecycle
+- Debounced native folder events; no polling or background index
+- Searchable transient document outline with duplicate and Unicode heading IDs
+- Footnotes, GitHub alerts, read-only task lists, local image inspection, and
+  accessible code-block controls
+- Eight coordinated light/dark themes and context-aware zoom
+- Dedicated print rendering that waits for images and Full lazy renderers
+- No network access, runtime downloads, Electron, Swift packages, or
+  third-party native frameworks
 
-| Metric | Value |
-|--------|-------|
-| App size | ~1.5 MB |
-| Download (zip) | ~431 KB |
-| Cold start | < 50 ms |
-| Memory | ~112 MB |
+## Editions and offline rendering
+
+Lite physically excludes Mermaid, svg-pan-zoom, highlight.js, js-yaml, and
+their notices. Full physically excludes Prism. Full modules are served only
+from a generated app-bundle allowlist and are imported on demand:
+
+- highlight.js only when a non-Mermaid code fence exists
+- js-yaml only when the document begins with a valid frontmatter delimiter
+- Mermaid only for fenced `mermaid` blocks
+- svg-pan-zoom only after a diagram renders successfully
+
+Ordinary Markdown in Full initializes none of these modules.
 
 ## Install
 
-Download the latest signed DMG from [Releases](https://github.com/trsdn/mdviewerplus/releases) or build from source:
+Download one of the signed and notarized release artifacts:
+
+- `MDViewerPlus-Full-macos.dmg` — recommended
+- `MDViewerPlus-Lite-macos.dmg` — minimum footprint
+
+Every DMG has a matching `.sha256` file.
+
+To build locally:
 
 ```bash
 brew install xcodegen
 xcodegen generate
-xcodebuild -scheme MDViewerPlus -configuration Release build
+xcodebuild -scheme MDViewerPlus-Lite -configuration Release build
+xcodebuild -scheme MDViewerPlus-Full -configuration Release build
 ```
 
-## Signed DMG Release
-
-Create a local release config from `.release.env.example`, then run:
-
-```bash
-scripts/release_macos.sh
-```
-
-The GitHub release workflow builds a signed, notarized DMG on `v*` tags. Configure these repository secrets first:
-`MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PWD`, `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_PASSWORD`.
-
-## Keyboard Shortcuts
+## Keyboard shortcuts
 
 | Action | Shortcut |
-|--------|----------|
-| Print | `Cmd P` |
+| --- | --- |
+| Find / next / previous | `Cmd F` / `Cmd G` / `Cmd Shift G` |
+| Quick Open | `Cmd K` |
+| Document Outline | `Cmd Shift O` |
 | Toggle View Mode | `Cmd E` |
-| Bold | `Cmd B` |
-| Italic | `Cmd I` |
-| Link | `Cmd K` |
-| Save | `Cmd S` |
-| New File | `Cmd N` |
-| Previous Markdown File | `Cmd Option Left` |
-| Next Markdown File | `Cmd Option Right` |
+| Bold / Italic / Link | `Cmd B` / `Cmd I` / `Cmd Shift K` |
+| Print | `Cmd P` |
+| Previous / next Markdown file | `Cmd Option Left` / `Cmd Option Right` |
 | Reload | `Cmd R` |
-| Zoom In | `Cmd +` |
-| Zoom Out | `Cmd -` |
-| Actual Size | `Cmd 0` |
-| System Appearance | `Cmd Shift 0` |
-| Light Mode | `Cmd Shift 1` |
-| Dark Mode | `Cmd Shift 2` |
+| Zoom in / out / actual size | `Cmd +` / `Cmd -` / `Cmd 0` |
+| System / light / dark appearance | `Cmd Shift 0` / `Cmd Shift 1` / `Cmd Shift 2` |
 
-## Appearance and themes
+## Security model
 
-Choose **MDViewer+ > Settings** to select an appearance mode plus one preferred
-light and dark palette. System mode reacts to the current macOS appearance.
-The View > Appearance commands and `Cmd Shift 0/1/2` shortcuts remain unchanged.
+- Release builds use App Sandbox and Hardened Runtime.
+- A restrictive CSP blocks network connections, frames, objects, workers,
+  forms, base navigation, remote images, and untrusted scripts.
+- Markdown HTML is sanitized by a narrow DOMPurify policy before insertion.
+- Highlighter output and Mermaid SVG use separate constrained sanitizers.
+- Local resources are limited to raster images under a user-authorized folder;
+  symlink escapes and unsupported types are rejected.
+- Internal links accept only supported relative Markdown files under that
+  folder. Absolute paths, queries, traversal, encoded traversal, unsupported
+  extensions, directories, and symlink escapes are rejected.
+- YAML uses `FAILSAFE_SCHEMA` plus source, depth, node, collection, key, and
+  display limits. Unsafe tags and prototype-related keys are rejected.
+- Mermaid uses strict security, disabled HTML labels, bounded source/count/
+  concurrency/time, generation cancellation, and no remote resources.
 
-- **Light:** GitHub Light, Solarized Light, Sepia
-- **Dark:** GitHub Dark, Solarized Dark, Dracula, Monokai, Nord
+## Dependencies and measured web assets
 
-Theme changes update the editor and preview together without re-rendering the
-document. Text-bearing palette colors meet WCAG AA contrast of at least 4.5:1.
-Printing always uses its dedicated white, high-contrast palette.
+| Library | Version | Edition | License |
+| --- | --- | --- | --- |
+| marked | 15.0.7 | Common | MIT |
+| DOMPurify | 3.4.12 | Common | Apache-2.0 OR MPL-2.0 |
+| marked-footnote | 1.4.0 | Common | MIT |
+| Prism | 1.30.0 | Lite | MIT |
+| highlight.js | 11.11.1 | Full | BSD-3-Clause |
+| js-yaml | 5.2.2 | Full | MIT |
+| Mermaid | 11.16.0 | Full | MIT |
+| svg-pan-zoom | 3.6.2 | Full | BSD-2-Clause |
 
-## Dependencies
+`vendor/manifest.json` records every shipped file's SHA-256, exact package
+version, source, license, and edition. `THIRD-PARTY-NOTICES.md` and the bundled
+license files contain the corresponding notices.
 
-| Library | Version | License | Purpose |
-|---------|---------|---------|---------|
-| [marked](https://github.com/markedjs/marked) | 15.0.7 | MIT | Markdown → HTML parsing |
-| [DOMPurify](https://github.com/cure53/DOMPurify) | 3.4.12 | Apache-2.0 OR MPL-2.0 | HTML sanitization |
+The generated Lite-only Prism asset is 31.6 KiB minified. This is above the
+original approximate 10–20 KiB target because all eight promised language
+families and their required Prism grammar dependencies are retained; Lite
+still has no plugins, autoloader, theme asset, or Full dependency. The source
+and bundle audits enforce a 36 KiB Lite-only ceiling and physical exclusions.
 
-No Swift package dependencies or third-party native frameworks. JavaScript dependencies and their license notices are bundled with the app.
+## Test and release
 
-## Security and local resources
+```bash
+scripts/vendor_web_assets.sh  # deterministic assets, hashes, notices
+scripts/test_editions.sh      # all unit/render/security tests in both editions
 
-Release builds use the macOS App Sandbox and Hardened Runtime. Rendered HTML is sanitized, remote embedded resources are blocked, and external links open in their default app.
+REQUIRE_SIGNING=0 EDITION=lite scripts/build_release.sh
+REQUIRE_SIGNING=0 EDITION=full scripts/build_release.sh
+scripts/audit_bundle.sh lite dist/lite/MDViewer+.app
+scripts/audit_bundle.sh full dist/full/MDViewer+.app
+```
 
-Relative images and local links require access to the Markdown document’s folder. MDViewer+ asks once, stores an app-scoped security bookmark, and limits WebKit reads to raster images inside that authorized folder.
-
-Sibling navigation uses the same persisted folder authorization. Choose **File >
-Enable Sibling Navigation…** once for a folder; normal document opening never
-prompts for navigation access. After authorization, the command becomes
-**Refresh Sibling Navigation**. It and **Reload** rescan the folder so newly
-added or removed Markdown files are reflected at the navigation boundaries.
-Reload stays silent when folder access is unavailable; only the explicit
-Enable/Refresh command requests access or reports folder-access errors.
+For a signed local release, copy `.release.env.example` to `.release.env` and
+run `scripts/release_macos.sh`. It builds, audits, packages, notarizes, staples,
+Gatekeeper-checks, and hashes both editions.
 
 ## License
 

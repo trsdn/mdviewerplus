@@ -6,6 +6,9 @@ DerivedData/
 build/
 dist/
 release-build/
+.build/
+vendor/.build/
+vendor/node_modules/
 .release.env
 *.dmg
 *.dmg.sha256

@@ -10,13 +10,47 @@ schemes:
   MDViewerPlus:
     build:
       targets:
-        MDViewerPlus: all
+        MDViewerPlusFull: all
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - MDViewerPlusTests
+        - MDViewerPlusFullTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  MDViewerPlus-Lite:
+    build:
+      targets:
+        MDViewerPlusLite: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MDViewerPlusLiteTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  MDViewerPlus-Full:
+    build:
+      targets:
+        MDViewerPlusFull: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MDViewerPlusFullTests
     profile:
       config: Release
     analyze:
@@ -27,25 +61,32 @@ schemes:
   MDViewerPlusUITests:
     build:
       targets:
-        MDViewerPlus: all
+        MDViewerPlusLite: all
     test:
       config: Debug
       targets:
         - MDViewerPlusUITests
 
-targets:
-  MDViewerPlus:
+targetTemplates:
+  AppBase:
     type: application
     platform: macOS
     sources:
-      - MDViewerPlus
+      - path: MDViewerPlus
+        excludes:
+          - Resources
+      - path: MDViewerPlus/Resources/AppIcon.icns
+        buildPhase: resources
+      - path: MDViewerPlus/Resources/Common
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlus
         PRODUCT_NAME: "MDViewer+"
         PRODUCT_MODULE_NAME: MDViewerPlus
-        MARKETING_VERSION: "1.5.0"
-        CURRENT_PROJECT_VERSION: "7"
+        MARKETING_VERSION: "2.0.0"
+        CURRENT_PROJECT_VERSION: "8"
         INFOPLIST_FILE: MDViewerPlus/Info.plist
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"
@@ -62,20 +103,61 @@ targets:
           STRIP_SWIFT_SYMBOLS: true
           STRIP_STYLE: "non-global"
 
-  MDViewerPlusTests:
+  TestBase:
     type: bundle.unit-test
     platform: macOS
     sources:
       - MDViewerPlusTests
-    dependencies:
-      - target: MDViewerPlus
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlusTests
         GENERATE_INFOPLIST_FILE: true
         SWIFT_VERSION: "5.9"
+        PRODUCT_MODULE_NAME: MDViewerPlusTests
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MDViewer+.app/Contents/MacOS/MDViewer+"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+targets:
+  MDViewerPlusLite:
+    templates:
+      - AppBase
+    sources:
+      - path: MDViewerPlus/Resources/Lite
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        MDVIEWER_EDITION: lite
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MDVIEWER_LITE"
+
+  MDViewerPlusFull:
+    templates:
+      - AppBase
+    sources:
+      - path: MDViewerPlus/Resources/Full
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        MDVIEWER_EDITION: full
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MDVIEWER_FULL"
+
+  MDViewerPlusLiteTests:
+    templates:
+      - TestBase
+    dependencies:
+      - target: MDViewerPlusLite
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlusLiteTests
+
+  MDViewerPlusFullTests:
+    templates:
+      - TestBase
+    dependencies:
+      - target: MDViewerPlusFull
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlusFullTests
 
   MDViewerPlusUITests:
     type: bundle.ui-testing
@@ -83,10 +165,10 @@ targets:
     sources:
       - MDViewerPlusUITests
     dependencies:
-      - target: MDViewerPlus
+      - target: MDViewerPlusLite
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlusUITests
         GENERATE_INFOPLIST_FILE: true
         SWIFT_VERSION: "5.9"
-        TEST_TARGET_NAME: MDViewerPlus
+        TEST_TARGET_NAME: MDViewerPlusLite

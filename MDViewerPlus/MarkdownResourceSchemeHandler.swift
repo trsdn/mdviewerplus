@@ -31,6 +31,24 @@ final class MarkdownResourceSchemeHandler: NSObject, WKURLSchemeHandler {
                 throw MarkdownResourceError.invalidPath
             }
 
+            if MarkdownModuleResolver.isModuleURL(requestURL) {
+                let module = try MarkdownModuleResolver.resolve(requestURL)
+                let data = try Data(
+                    contentsOf: module.fileURL,
+                    options: .mappedIfSafe
+                )
+                let response = URLResponse(
+                    url: requestURL,
+                    mimeType: "text/javascript",
+                    expectedContentLength: module.byteCount,
+                    textEncodingName: "utf-8"
+                )
+                urlSchemeTask.didReceive(response)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+                return
+            }
+
             let fileURL = try MarkdownResourceResolver.resolve(
                 requestURL,
                 under: authorizedRoot

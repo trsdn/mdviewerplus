@@ -8,6 +8,8 @@ struct MarkdownEditorView: NSViewRepresentable {
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
     let commandRequest: EditorCommandRequest?
+    let findRequest: FindCommandRequest?
+    let outlineRequest: EditorOutlineRequest?
     var onFocus: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -49,6 +51,8 @@ struct MarkdownEditorView: NSViewRepresentable {
         context.coordinator.textView = textView
         context.coordinator.scrollView = scrollView
         context.coordinator.lastHandledCommandID = commandRequest?.id
+        context.coordinator.lastHandledFindID = findRequest?.id
+        context.coordinator.lastHandledOutlineID = outlineRequest?.id
         applyAppearance(to: scrollView)
         applyHighlighting(to: textView)
         context.coordinator.lastHighlightedText = text
@@ -99,6 +103,8 @@ struct MarkdownEditorView: NSViewRepresentable {
             applyHighlighting(to: textView)
         }
         coordinator.handle(commandRequest)
+        coordinator.handle(findRequest)
+        coordinator.handle(outlineRequest)
 
         // Apply incoming scroll from preview
         if scrollSource == .preview, let documentView = scrollView.documentView {
@@ -182,6 +188,8 @@ struct MarkdownEditorView: NSViewRepresentable {
         var lastFontSize: CGFloat = 0
         var lastPaletteID: ThemeID?
         var lastHandledCommandID: UUID?
+        var lastHandledFindID: UUID?
+        var lastHandledOutlineID: UUID?
         private var notificationObservers: [NSObjectProtocol] = []
 
         init(_ parent: MarkdownEditorView) {
@@ -263,6 +271,43 @@ struct MarkdownEditorView: NSViewRepresentable {
             case .link:
                 insertLink()
             }
+        }
+
+        func handle(_ request: FindCommandRequest?) {
+            guard let request,
+                  request.id != lastHandledFindID,
+                  let textView else { return }
+            lastHandledFindID = request.id
+
+            let action: NSFindPanelAction
+            switch request.command {
+            case .show: action = .showFindPanel
+            case .next: action = .next
+            case .previous: action = .previous
+            case .dismiss:
+                textView.window?.makeFirstResponder(textView)
+                return
+            }
+            let sender = NSMenuItem()
+            sender.tag = Int(action.rawValue)
+            textView.window?.makeFirstResponder(textView)
+            textView.performFindPanelAction(sender)
+        }
+
+        func handle(_ request: EditorOutlineRequest?) {
+            guard let request,
+                  request.id != lastHandledOutlineID,
+                  let textView else { return }
+            lastHandledOutlineID = request.id
+            let location = min(
+                max(request.location, 0),
+                (textView.string as NSString).length
+            )
+            let range = NSRange(location: location, length: 0)
+            textView.setSelectedRange(range)
+            textView.scrollRangeToVisible(range)
+            textView.window?.makeFirstResponder(textView)
+            parent.onFocus?()
         }
 
         private func wrapSelection(with marker: String) {

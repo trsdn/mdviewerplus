@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum ViewMode {
+enum ViewMode: Equatable {
     case view, split, edit
 
     var next: ViewMode {
@@ -70,6 +70,19 @@ struct ContentView: View {
     @State private var scrollFraction: CGFloat = 0
     @State private var scrollSource: ScrollSource = .editor
     @State private var editorCommandRequest: EditorCommandRequest?
+    @State private var editorFindRequest: FindCommandRequest?
+    @State private var previewFindRequest: PreviewFindRequest?
+    @State private var editorOutlineRequest: EditorOutlineRequest?
+    @State private var previewOutlineRequest: PreviewOutlineRequest?
+    @State private var previewFindQuery = ""
+    @State private var previewFindStatus = ""
+    @State private var isPreviewFindPresented = false
+    @State private var isQuickOpenPresented = false
+    @State private var quickOpenItems: [QuickOpenItem] = []
+    @State private var isOutlinePresented = false
+    @State private var outlineEntries: [OutlineEntry] = []
+    @State private var pendingQuickOpen = false
+    @State private var pendingInitialFragment: String?
     @State private var documentAlert: DocumentAlert?
     @State private var folderAccess: FolderAccessLease?
     @State private var relativeResourcesRequested = false
@@ -81,6 +94,7 @@ struct ContentView: View {
     @State private var isNavigating = false
     @StateObject private var windowState = DocumentWindowState()
     @StateObject private var printController = MarkdownPrintController()
+    @StateObject private var folderWatcher = MarkdownFolderWatcher()
 
     private var palette: ThemePalette {
         ThemeRegistry.resolve(
@@ -103,9 +117,13 @@ struct ContentView: View {
                     resourceRoot: folderAccess?.rootURL,
                     scrollFraction: $scrollFraction,
                     scrollSource: $scrollSource,
+                    findRequest: previewFindRequest,
+                    outlineRequest: previewOutlineRequest,
                     onFocus: { activePane = .preview },
                     onError: showRenderError,
                     onRelativeResources: handleRelativeResources,
+                    onOutline: updateOutline,
+                    onFindResult: updatePreviewFindStatus,
                     onOpenRelativeLink: openRelativeLink
                 )
             case .split:
@@ -117,6 +135,8 @@ struct ContentView: View {
                         scrollFraction: $scrollFraction,
                         scrollSource: $scrollSource,
                         commandRequest: editorCommandRequest,
+                        findRequest: editorFindRequest,
+                        outlineRequest: editorOutlineRequest,
                         onFocus: { activePane = .editor }
                     )
                     .frame(minWidth: 200)
@@ -128,9 +148,13 @@ struct ContentView: View {
                         resourceRoot: folderAccess?.rootURL,
                         scrollFraction: $scrollFraction,
                         scrollSource: $scrollSource,
+                        findRequest: previewFindRequest,
+                        outlineRequest: previewOutlineRequest,
                         onFocus: { activePane = .preview },
                         onError: showRenderError,
                         onRelativeResources: handleRelativeResources,
+                        onOutline: updateOutline,
+                        onFindResult: updatePreviewFindStatus,
                         onOpenRelativeLink: openRelativeLink
                     )
                     .frame(minWidth: 200)
@@ -144,6 +168,8 @@ struct ContentView: View {
                     scrollFraction: $scrollFraction,
                     scrollSource: $scrollSource,
                     commandRequest: editorCommandRequest,
+                    findRequest: editorFindRequest,
+                    outlineRequest: editorOutlineRequest,
                     onFocus: { activePane = .editor }
                 )
             }
@@ -155,9 +181,33 @@ struct ContentView: View {
         .overlay(alignment: .topTrailing) {
             resourceAccessNotice
         }
+        .overlay(alignment: .topTrailing) {
+            if isPreviewFindPresented {
+                PreviewFindBar(
+                    query: $previewFindQuery,
+                    status: previewFindStatus,
+                    onSearch: performPreviewFind,
+                    onDismiss: dismissPreviewFind
+                )
+                .padding(10)
+            }
+        }
         .focusedSceneValue(\.documentCommandActions, commandActions)
         .task(id: fileURL) {
             resetFolderAccess()
+        }
+        .onDisappear {
+            folderWatcher.stop()
+        }
+        .sheet(isPresented: $isQuickOpenPresented) {
+            QuickOpenPalette(items: quickOpenItems) { url in
+                openNativeDocument(at: url, fragment: nil)
+            }
+        }
+        .sheet(isPresented: $isOutlinePresented) {
+            OutlinePalette(entries: outlineEntries) { entry in
+                selectOutlineEntry(entry)
+            }
         }
         .alert(item: $documentAlert) { alert in
             switch alert {
@@ -189,6 +239,11 @@ struct ContentView: View {
             canPrepareNavigation: fileURL != nil
                 && !isNavigating
                 && !isRequestingResourceAccess,
+            canQuickOpen: fileURL != nil
+                && !isNavigating
+                && !isRequestingResourceAccess,
+            canShowOutline: !outlineEntries.isEmpty,
+            canDismissFind: isPreviewFindPresented,
             navigationPreparationTitle:
                 SiblingNavigationFreshnessPolicy.preparationCommandTitle(
                     hasFolderAccess: folderAccess != nil
@@ -202,6 +257,9 @@ struct ContentView: View {
             zoomOut: { handleZoom(.zoomOut) },
             zoomReset: { handleZoom(.zoomReset) },
             printDocument: printCurrentDocument,
+            find: handleFind,
+            quickOpen: presentQuickOpen,
+            showOutline: { isOutlinePresented = true },
             format: requestFormat
         )
     }
@@ -280,6 +338,125 @@ struct ContentView: View {
     private func requestFormat(_ command: MarkdownFormatCommand) {
         guard canFormat else { return }
         editorCommandRequest = EditorCommandRequest(command: command)
+    }
+
+    private func handleFind(_ command: FindCommand) {
+        let target: ActivePane
+        switch viewMode {
+        case .view: target = .preview
+        case .edit: target = .editor
+        case .split: target = activePane
+        }
+
+        switch target {
+        case .editor:
+            if command == .dismiss {
+                isPreviewFindPresented = false
+            }
+            editorFindRequest = FindCommandRequest(command: command)
+        case .preview:
+            switch command {
+            case .show:
+                isPreviewFindPresented = true
+                previewFindStatus = ""
+            case .next:
+                if previewFindQuery.isEmpty {
+                    isPreviewFindPresented = true
+                } else {
+                    performPreviewFind(backwards: false)
+                }
+            case .previous:
+                if previewFindQuery.isEmpty {
+                    isPreviewFindPresented = true
+                } else {
+                    performPreviewFind(backwards: true)
+                }
+            case .dismiss:
+                dismissPreviewFind()
+            }
+        }
+    }
+
+    private func performPreviewFind(backwards: Bool) {
+        guard !previewFindQuery.isEmpty else {
+            previewFindStatus = ""
+            return
+        }
+        previewFindStatus = "Searching…"
+        previewFindRequest = PreviewFindRequest(
+            query: previewFindQuery,
+            backwards: backwards
+        )
+    }
+
+    private func updatePreviewFindStatus(_ found: Bool) {
+        previewFindStatus = found ? "Match found" : "No matches"
+    }
+
+    private func dismissPreviewFind() {
+        isPreviewFindPresented = false
+        previewFindStatus = ""
+        previewFindRequest = PreviewFindRequest(query: "", clear: true)
+    }
+
+    private func updateOutline(_ renderedEntries: [OutlineEntry]) {
+        let nativeEntries = DocumentOutlineParser.parse(document.text)
+        let nativeBySlug = Dictionary(
+            uniqueKeysWithValues: nativeEntries.map { ($0.slug, $0) }
+        )
+        outlineEntries = renderedEntries.map { rendered in
+            OutlineEntry(
+                slug: rendered.slug,
+                level: rendered.level,
+                title: rendered.title,
+                sourceLocation: nativeBySlug[rendered.slug]?.sourceLocation
+            )
+        }
+
+        if let fragment = pendingInitialFragment {
+            pendingInitialFragment = nil
+            previewOutlineRequest = PreviewOutlineRequest(slug: fragment)
+        }
+    }
+
+    private func selectOutlineEntry(_ entry: OutlineEntry) {
+        previewOutlineRequest = PreviewOutlineRequest(slug: entry.slug)
+        if viewMode != .view, let sourceLocation = entry.sourceLocation {
+            editorOutlineRequest = EditorOutlineRequest(
+                location: sourceLocation
+            )
+        }
+    }
+
+    private func presentQuickOpen() {
+        guard fileURL != nil else { return }
+        guard folderAccess != nil else {
+            pendingQuickOpen = true
+            requestFolderAccess(for: .navigationTools)
+            return
+        }
+        reloadQuickOpen(reportErrors: true)
+        isQuickOpenPresented = true
+    }
+
+    private func reloadQuickOpen(reportErrors: Bool) {
+        guard let folderAccess else {
+            quickOpenItems = []
+            return
+        }
+        do {
+            quickOpenItems = try MarkdownFileCatalog.files(
+                in: folderAccess.rootURL
+            ).map(QuickOpenItem.init(url:))
+        } catch {
+            quickOpenItems = []
+            if reportErrors {
+                documentAlert = .error(
+                    title: "Couldn’t List Markdown Files",
+                    message: error.localizedDescription
+                )
+            }
+        }
     }
 
     private func reload() {
@@ -458,11 +635,19 @@ struct ContentView: View {
 
     private func resetFolderAccess() {
         resourceAccessGeneration += 1
+        folderWatcher.stop()
         folderAccess = nil
         relativeResourcesRequested = false
         resourceAccessDeclined = false
         isRequestingResourceAccess = false
         pendingRelativeLink = nil
+        pendingQuickOpen = false
+        isQuickOpenPresented = false
+        quickOpenItems = []
+        outlineEntries = []
+        pendingInitialFragment = fileURL.flatMap {
+            PendingDocumentFragmentStore.shared.consume(for: $0)
+        }
         restoreFolderAccess()
         siblingFiles = .unavailable
 
@@ -472,6 +657,7 @@ struct ContentView: View {
         )
         if decision == .useRestoredAccess {
             refreshSiblingFiles(reportErrors: false)
+            startFolderWatcher()
         }
     }
 
@@ -490,6 +676,9 @@ struct ContentView: View {
                 guard generation == resourceAccessGeneration,
                       self.fileURL == fileURL else { return }
                 folderAccess = access
+                if access == nil {
+                    pendingQuickOpen = false
+                }
                 if purpose == .relativeResources {
                     resourceAccessDeclined = access == nil
                 }
@@ -502,6 +691,12 @@ struct ContentView: View {
                 }
                 if let rootURL = access?.rootURL {
                     openPendingRelativeLink(under: rootURL)
+                    startFolderWatcher()
+                    if pendingQuickOpen {
+                        pendingQuickOpen = false
+                        reloadQuickOpen(reportErrors: true)
+                        isQuickOpenPresented = true
+                    }
                 }
             } catch {
                 guard generation == resourceAccessGeneration,
@@ -510,9 +705,9 @@ struct ContentView: View {
                 case .relativeResources:
                     resourceAccessDeclined = true
                     showResourceError(error)
-                case .siblingNavigation:
+                case .siblingNavigation, .navigationTools:
                     showNavigationError(
-                        title: "Couldn’t Enable Sibling Navigation",
+                        title: "Couldn’t Enable Folder Navigation",
                         error: error
                     )
                 }
@@ -538,19 +733,79 @@ struct ContentView: View {
         guard let pendingRelativeLink else { return }
 
         do {
-            let fileURL = try MarkdownResourceResolver.resolve(
-                pendingRelativeLink,
-                under: rootURL
+            guard let sourceURL = fileURL else {
+                throw InternalMarkdownLinkError.notRelative
+            }
+            let rawLink = try InternalMarkdownLinkResolver.relativeLink(
+                from: pendingRelativeLink
             )
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                throw CocoaError(.fileReadNoSuchFile)
-            }
-            guard NSWorkspace.shared.open(fileURL) else {
-                throw CocoaError(.fileReadUnknown)
-            }
+            let link = try InternalMarkdownLinkResolver.resolve(
+                rawLink: rawLink,
+                documentURL: sourceURL,
+                authorizedRoot: rootURL
+            )
             self.pendingRelativeLink = nil
+            openNativeDocument(
+                at: link.fileURL,
+                fragment: link.fragment
+            )
         } catch {
             showResourceError(error)
+        }
+    }
+
+    private func startFolderWatcher() {
+        guard let folderAccess else { return }
+        folderWatcher.start(watching: folderAccess.rootURL) {
+            refreshSiblingFiles(reportErrors: false)
+            if isQuickOpenPresented {
+                reloadQuickOpen(reportErrors: false)
+            }
+        }
+    }
+
+    private func openNativeDocument(
+        at destination: URL,
+        fragment: String?
+    ) {
+        guard !isNavigating else { return }
+        isNavigating = true
+        let access = folderAccess
+        let sourceWindow = windowState.window
+
+        Task { @MainActor in
+            defer {
+                _ = access
+                isNavigating = false
+            }
+            do {
+                if let fragment {
+                    PendingDocumentFragmentStore.shared.store(
+                        fragment: fragment,
+                        for: destination
+                    )
+                }
+                if let access {
+                    try await SecurityScopedLeaseLifetime.retaining(access) {
+                        try await openDocument(at: destination)
+                    }
+                } else {
+                    try await openDocument(at: destination)
+                }
+                DocumentOpeningPolicy.handleSuccessfulOpen(
+                    sourceWindow: sourceWindow
+                )
+            } catch {
+                if fragment != nil {
+                    _ = PendingDocumentFragmentStore.shared.consume(
+                        for: destination
+                    )
+                }
+                documentAlert = .error(
+                    title: "Couldn’t Open Markdown File",
+                    message: error.localizedDescription
+                )
+            }
         }
     }
 

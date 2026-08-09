@@ -1,0 +1,40 @@
+name: Test Lite and Full
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-audit:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Test both editions
+        run: |
+          chmod +x scripts/*.sh
+          scripts/test_editions.sh
+
+      - name: Build and audit unsigned release bundles
+        env:
+          REQUIRE_SIGNING: "0"
+        run: |
+          EDITION=lite scripts/build_release.sh
+          EDITION=full scripts/build_release.sh
+
+      - name: Upload audited app bundles
+        uses: actions/upload-artifact@v5
+        with:
+          name: MDViewerPlus-2.0.0-app-bundles
+          path: |
+            dist/lite/MDViewer+.app
+            dist/full/MDViewer+.app

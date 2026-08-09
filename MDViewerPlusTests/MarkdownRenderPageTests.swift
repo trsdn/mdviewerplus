@@ -230,12 +230,319 @@ final class MarkdownRenderPageTests: XCTestCase {
         XCTAssertEqual(colors["codeBackground"] as? String, "#3b4252")
     }
 
+    func testFootnotesAlertsTasksOutlineAndCodeControls() async throws {
+        let webView = try await loadRenderPage()
+        try await render(
+            """
+            # Hello World
+            # Hello World
+
+            > [!WARNING]
+            > Take care.
+
+            - [x] Complete
+
+            ```swift
+            let value = 42
+            ```
+
+            Reference[^1].
+
+            [^1]: Footnote body.
+            """,
+            in: webView
+        )
+
+        let result = try await values(
+            """
+            ({
+              firstSlug: document.querySelector('h1')?.id || '',
+              secondSlug: document.querySelectorAll('h1')[1]?.id || '',
+              alerts: document.querySelectorAll('.md-alert-warning').length,
+              disabledTasks: document.querySelectorAll(
+                '.md-task-item input[type="checkbox"][disabled]'
+              ).length,
+              codeControls: document.querySelectorAll('.md-code-toolbar').length,
+              footnotes: document.querySelectorAll('.md-footnotes').length,
+              backrefs: document.querySelectorAll('.md-footnote-backref').length,
+              outline: window.mdviewerOutline().length
+            })
+            """,
+            in: webView
+        )
+
+        XCTAssertEqual(result["firstSlug"] as? String, "hello-world")
+        XCTAssertEqual(result["secondSlug"] as? String, "hello-world-1")
+        XCTAssertEqual(int(result, "alerts"), 1)
+        XCTAssertEqual(int(result, "disabledTasks"), 1)
+        XCTAssertEqual(int(result, "codeControls"), 1)
+        XCTAssertEqual(int(result, "footnotes"), 1)
+        XCTAssertGreaterThanOrEqual(int(result, "backrefs"), 1)
+        XCTAssertGreaterThanOrEqual(int(result, "outline"), 2)
+    }
+
+    func testImageViewerUsesOnlySanitizedLocalImage() async throws {
+        let webView = try await loadRenderPage()
+        try await render(
+            """
+            ![local](image.png)
+            ![remote](https://example.com/image.png)
+            """,
+            in: webView
+        )
+
+        let result = try await values(
+            """
+            (() => {
+              const images = document.querySelectorAll('#content img');
+              images[0].click();
+              return {
+                images: images.length,
+                viewer: document.querySelectorAll('.md-image-viewer').length,
+                viewerSource: document.querySelector('.md-image-full')
+                  ?.getAttribute('src') || ''
+              };
+            })()
+            """,
+            in: webView
+        )
+
+        XCTAssertEqual(int(result, "images"), 2)
+        XCTAssertEqual(int(result, "viewer"), 1)
+        XCTAssertEqual(result["viewerSource"] as? String, "image.png")
+    }
+
+    func testEditionSpecificHighlightingAndLazyModules() async throws {
+        let webView = try await loadRenderPage()
+        let before = try await values(
+            """
+            ({
+              edition: window.mdviewerCapabilities().edition,
+              loaded: Object.keys(window.__mdviewerLoadedModules || {}).length
+            })
+            """,
+            in: webView
+        )
+        XCTAssertEqual(
+            before["edition"] as? String,
+            EditionCapabilities.current.edition.rawValue
+        )
+        XCTAssertEqual(int(before, "loaded"), 0)
+
+        try await render(
+            """
+            ```swift
+            let greeting = "hello"
+            ```
+            """,
+            in: webView
+        )
+
+        if EditionCapabilities.current.edition == .lite {
+            let tokens = try await webView.evaluateJavaScript(
+                "document.querySelectorAll('.md-code .token').length"
+            ) as? NSNumber
+            XCTAssertGreaterThan(tokens?.intValue ?? 0, 0)
+        } else {
+            try await waitUntil(
+                "window.__mdviewerLoadedModules.highlight === true",
+                in: webView
+            )
+            let moduleError = try await webView.evaluateJavaScript(
+                "window.__mdviewerModuleErrors.highlight || ''"
+            ) as? String
+            XCTAssertEqual(moduleError, "", moduleError ?? "Unknown error")
+            let highlighted = try await webView.evaluateJavaScript(
+                "document.querySelectorAll('.md-code .hljs').length"
+            ) as? NSNumber
+            XCTAssertEqual(highlighted?.intValue, 1)
+        }
+    }
+
+    func testFullModuleSchemeImportsAllowlistedModule() async throws {
+        guard EditionCapabilities.current.edition == .full else {
+            throw XCTSkip("Full-only module test")
+        }
+        let webView = try await loadRenderPage()
+        let hooks = try await values(
+            """
+            ({
+              frontmatter: typeof window.__mdviewerReadFrontmatter,
+              highlight: typeof window.__mdviewerHighlightBlocks,
+              mermaid: typeof window.__mdviewerRenderDiagrams
+            })
+            """,
+            in: webView
+        )
+        XCTAssertEqual(hooks["frontmatter"] as? String, "function")
+        XCTAssertEqual(hooks["highlight"] as? String, "function")
+        XCTAssertEqual(hooks["mermaid"] as? String, "function")
+        let result = try await webView.callAsyncJavaScript(
+            """
+            try {
+              const module = await import(
+                window.__mdviewerModuleBase + 'js-yaml.esm.min.mjs'
+              );
+              return typeof module.load === 'function' ? 'ok' : 'missing export';
+            } catch (error) {
+              return String(error && (error.stack || error.message || error));
+            }
+            """,
+            arguments: [:],
+            in: nil,
+            contentWorld: .page
+        ) as? String
+        XCTAssertEqual(result, "ok", result ?? "No module result")
+    }
+
+    func testFullFrontmatterIsLazyAndRejectsUnsafeTags() async throws {
+        guard EditionCapabilities.current.edition == .full else {
+            throw XCTSkip("Full-only frontmatter test")
+        }
+
+        let webView = try await loadRenderPage()
+        try await render(
+            """
+            ---
+            title: Safe title
+            tags:
+              - one
+              - two
+            ---
+            # Body
+            """,
+            in: webView
+        )
+        try await waitUntil(
+            "window.__mdviewerLoadedModules.yaml === true",
+            in: webView
+        )
+        let moduleError = try await webView.evaluateJavaScript(
+            "window.__mdviewerModuleErrors.yaml || ''"
+        ) as? String
+        XCTAssertEqual(moduleError, "", moduleError ?? "Unknown error")
+        var result = try await values(
+            """
+            ({
+              cards: document.querySelectorAll('.md-frontmatter').length,
+              title: document.querySelector('.md-frontmatter dd')?.textContent || '',
+              rawDelimiter: document.getElementById('content').textContent.includes('---'),
+              body: document.querySelectorAll('h1').length
+            })
+            """,
+            in: webView
+        )
+        XCTAssertEqual(int(result, "cards"), 1)
+        XCTAssertEqual(result["title"] as? String, "Safe title")
+        XCTAssertFalse(bool(result, "rawDelimiter"))
+        XCTAssertEqual(int(result, "body"), 1)
+
+        try await render(
+            """
+            ---
+            payload: !!js/function "function() { return 1; }"
+            ---
+            Safe body
+            """,
+            in: webView
+        )
+        result = try await values(
+            """
+            ({
+              errors: document.querySelectorAll('.md-inline-error').length,
+              body: document.getElementById('content').textContent.includes('Safe body')
+            })
+            """,
+            in: webView
+        )
+        XCTAssertEqual(int(result, "errors"), 1)
+        XCTAssertTrue(bool(result, "body"))
+
+        try await render(
+            """
+            ---
+            shared: &items
+              - one
+            repeated: *items
+            ---
+            Alias body
+            """,
+            in: webView
+        )
+        result = try await values(
+            """
+            ({
+              errors: document.querySelectorAll('.md-inline-error').length,
+              body: document.getElementById('content').textContent.includes(
+                'Alias body'
+              )
+            })
+            """,
+            in: webView
+        )
+        XCTAssertEqual(int(result, "errors"), 1)
+        XCTAssertTrue(bool(result, "body"))
+    }
+
+    func testFullMermaidLoadsOnlyForDiagramAndSanitizesSVG() async throws {
+        guard EditionCapabilities.current.edition == .full else {
+            throw XCTSkip("Full-only Mermaid test")
+        }
+        let webView = try await loadRenderPage()
+        try await render(
+            """
+            ```mermaid
+            flowchart LR
+              A[Start] --> B[Done]
+            ```
+            """,
+            in: webView
+        )
+        _ = try await webView.callAsyncJavaScript(
+            "return await window.waitForResources(15000);",
+            arguments: [:],
+            in: nil,
+            contentWorld: .page
+        )
+        let result = try await values(
+            """
+            ({
+              mermaidLoaded: window.__mdviewerLoadedModules.mermaid === true,
+              panZoomLoaded: window.__mdviewerLoadedModules.panZoom === true,
+              diagrams: document.querySelectorAll(
+                '.md-diagram[data-md-diagram="rendered"] svg'
+              ).length,
+              scripts: document.querySelectorAll('.md-diagram script').length,
+              handlers: document.querySelectorAll(
+                '.md-diagram [onclick],.md-diagram [onload]'
+              ).length,
+              foreignObjects: document.querySelectorAll(
+                '.md-diagram foreignObject'
+              ).length
+            })
+            """,
+            in: webView
+        )
+        XCTAssertTrue(bool(result, "mermaidLoaded"))
+        XCTAssertTrue(bool(result, "panZoomLoaded"))
+        XCTAssertEqual(int(result, "diagrams"), 1)
+        XCTAssertEqual(int(result, "scripts"), 0)
+        XCTAssertEqual(int(result, "handlers"), 0)
+        XCTAssertEqual(int(result, "foreignObjects"), 0)
+    }
+
     private func loadRenderPage(
         configuration: WKWebViewConfiguration? = nil,
         baseURL: URL? = nil
     ) async throws -> WKWebView {
         let config = configuration ?? WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
+        if configuration == nil {
+            config.setURLSchemeHandler(
+                MarkdownResourceSchemeHandler(authorizedRoot: nil),
+                forURLScheme: MarkdownResourceResolver.scheme
+            )
+        }
         let webView = WKWebView(frame: .zero, configuration: config)
         let waiter = NavigationWaiter()
         webView.navigationDelegate = waiter
@@ -248,7 +555,7 @@ final class MarkdownRenderPageTests: XCTestCase {
             do {
                 webView.loadHTMLString(
                     try MarkdownRenderPage.makeHTML(),
-                    baseURL: baseURL
+                    baseURL: baseURL ?? MarkdownResourceResolver.baseURL
                 )
             } catch {
                 continuation.resume(throwing: error)
@@ -302,6 +609,20 @@ final class MarkdownRenderPageTests: XCTestCase {
     private func values(_ script: String, in webView: WKWebView) async throws -> [String: Any] {
         let value = try await webView.evaluateJavaScript(script)
         return try XCTUnwrap(value as? [String: Any])
+    }
+
+    private func waitUntil(
+        _ expression: String,
+        in webView: WKWebView,
+        attempts: Int = 100
+    ) async throws {
+        for _ in 0..<attempts {
+            if try await webView.evaluateJavaScript(expression) as? Bool == true {
+                return
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTFail("Timed out waiting for \(expression)")
     }
 
     private func bool(_ values: [String: Any], _ key: String) -> Bool {

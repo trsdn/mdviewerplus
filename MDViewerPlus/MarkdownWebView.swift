@@ -109,9 +109,13 @@ struct MarkdownWebView: NSViewRepresentable {
     let resourceRoot: URL?
     @Binding var scrollFraction: CGFloat
     @Binding var scrollSource: ScrollSource
+    let findRequest: PreviewFindRequest?
+    let outlineRequest: PreviewOutlineRequest?
     var onFocus: (() -> Void)?
     var onError: ((String) -> Void)?
     var onRelativeResources: (([String]) -> Void)?
+    var onOutline: (([OutlineEntry]) -> Void)?
+    var onFindResult: ((Bool) -> Void)?
     var onOpenRelativeLink: ((URL) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -128,6 +132,7 @@ struct MarkdownWebView: NSViewRepresentable {
         )
         config.userContentController.add(context.coordinator, name: "scrollHandler")
         config.userContentController.add(context.coordinator, name: "focusHandler")
+        config.userContentController.add(context.coordinator, name: "clipboardHandler")
 
         let injectedJS = """
         let programmaticScroll = { generation: null };
@@ -181,6 +186,8 @@ struct MarkdownWebView: NSViewRepresentable {
         coordinator.pendingText = text
         coordinator.lastZoom = zoomLevel
         coordinator.lastResourceRoot = resourceRoot
+        coordinator.lastHandledFindID = findRequest?.id
+        coordinator.lastHandledOutlineID = outlineRequest?.id
 
         applyNativeAppearance(to: webView)
         webView.pageZoom = zoomLevel
@@ -194,6 +201,9 @@ struct MarkdownWebView: NSViewRepresentable {
         )
         webView.configuration.userContentController.removeScriptMessageHandler(
             forName: "focusHandler"
+        )
+        webView.configuration.userContentController.removeScriptMessageHandler(
+            forName: "clipboardHandler"
         )
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
@@ -220,6 +230,8 @@ struct MarkdownWebView: NSViewRepresentable {
         }
 
         coordinator.requestRender(text)
+        coordinator.handle(findRequest)
+        coordinator.handle(outlineRequest)
 
         if scrollSource == .editor,
            let command = coordinator.scrollSyncState.command(
@@ -238,6 +250,8 @@ struct MarkdownWebView: NSViewRepresentable {
         var scrollSyncState = ScrollSyncState()
         weak var webView: WKWebView?
         var resourceHandler: MarkdownResourceSchemeHandler?
+        var lastHandledFindID: UUID?
+        var lastHandledOutlineID: UUID?
 
         private var isPageReady = false
         private var lastRequestedText: String?
@@ -375,10 +389,17 @@ struct MarkdownWebView: NSViewRepresentable {
                 switch result {
                 case .success(let value):
                     self.restoreScroll(in: webView)
-                    if let values = value as? [String: Any],
-                       let resources = values["resources"] as? [String],
-                       !resources.isEmpty {
-                        self.parent.onRelativeResources?(resources)
+                    if let values = value as? [String: Any] {
+                        if let resources = values["resources"] as? [String],
+                           !resources.isEmpty {
+                            self.parent.onRelativeResources?(resources)
+                        }
+                        if let payload = values["outline"]
+                            as? [[String: Any]] {
+                            self.parent.onOutline?(
+                                payload.compactMap(OutlineEntry.init(payload:))
+                            )
+                        }
                     }
                 case .failure(let error):
                     self.lastRequestedText = nil
@@ -394,6 +415,43 @@ struct MarkdownWebView: NSViewRepresentable {
             window.mdviewerScrollTo(\(command.fraction), \(command.generation));
             """
             webView.evaluateJavaScript(js, completionHandler: nil)
+        }
+
+        func handle(_ request: PreviewFindRequest?) {
+            guard let request,
+                  request.id != lastHandledFindID,
+                  let webView else { return }
+            lastHandledFindID = request.id
+
+            let configuration = WKFindConfiguration()
+            configuration.backwards = request.backwards
+            configuration.wraps = true
+            configuration.caseSensitive = false
+            webView.find(
+                request.clear ? "" : request.query,
+                configuration: configuration
+            ) { [weak self] result in
+                self?.parent.onFindResult?(
+                    request.clear ? false : result.matchFound
+                )
+            }
+        }
+
+        func handle(_ request: PreviewOutlineRequest?) {
+            guard let request,
+                  request.id != lastHandledOutlineID,
+                  let webView else { return }
+            lastHandledOutlineID = request.id
+            webView.callAsyncJavaScript(
+                "return window.mdviewerScrollToSlug(slug);",
+                arguments: ["slug": request.slug],
+                in: nil,
+                in: .page
+            ) { [weak self] result in
+                if case .failure(let error) = result {
+                    self?.report(error)
+                }
+            }
         }
 
         private func restoreScroll(in webView: WKWebView?) {
@@ -437,6 +495,16 @@ struct MarkdownWebView: NSViewRepresentable {
         ) {
             if message.name == "focusHandler" {
                 parent.onFocus?()
+                return
+            }
+            if message.name == "clipboardHandler" {
+                guard let payload = message.body as? [String: Any],
+                      let text = payload["text"] as? String,
+                      text.utf8.count <= 1_000_000 else {
+                    return
+                }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
                 return
             }
 
@@ -492,6 +560,21 @@ struct MarkdownWebView: NSViewRepresentable {
 
         private func openLink(_ url: URL) {
             if url.scheme?.lowercased() == MarkdownResourceResolver.scheme {
+                if url.path == "/", let fragment = url.fragment {
+                    webView?.callAsyncJavaScript(
+                        """
+                        const target = document.getElementById(fragment);
+                        if (!target) return false;
+                        target.scrollIntoView({block: "start"});
+                        target.focus({preventScroll: true});
+                        return true;
+                        """,
+                        arguments: ["fragment": fragment],
+                        in: nil,
+                        in: .page
+                    )
+                    return
+                }
                 parent.onOpenRelativeLink?(url)
                 return
             }

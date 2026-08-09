@@ -35,6 +35,19 @@ struct ThemeSettingsView: View {
             Text("System follows the current macOS appearance and uses the selected light or dark palette.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Section("About") {
+                Text(AppVersion.summary)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("editionVersion")
+                Text(
+                    AppVersion.edition == .full
+                        ? "Full includes lazy offline Mermaid, broad syntax highlighting, and YAML metadata cards."
+                        : "Lite includes the minimal Prism language set and physically excludes all Full-only renderers."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding()

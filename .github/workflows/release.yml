@@ -1,4 +1,4 @@
-name: Release macOS
+name: Release macOS Lite and Full
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to build, for example v1.2.1
+        description: Existing tag to build, for example v2.0.0
         required: true
         type: string
 
@@ -15,8 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  macos-dmg:
-    name: Build signed and notarized DMG
+  macos-dmgs:
+    name: Build signed and notarized Lite and Full DMGs
     runs-on: macos-latest
     steps:
       - name: Resolve release metadata
@@ -31,8 +31,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           ref: ${{ steps.release.outputs.tag }}
           fetch-depth: 0
@@ -47,39 +46,58 @@ jobs:
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
         run: |
           set -euo pipefail
-          cert_file="$(mktemp /tmp/mdviewerplus-cert.XXXXXX.p12)"
-          keychain_file="/tmp/mdviewerplus-build-${{ github.run_id }}.keychain-db"
+          mkdir -p .ci
+          cert_file="$GITHUB_WORKSPACE/.ci/developer-id.p12"
+          ca_file="$GITHUB_WORKSPACE/.ci/DeveloperIDG2CA.cer"
+          keychain_file="$GITHUB_WORKSPACE/.ci/build.keychain-db"
           keychain_password="$(openssl rand -base64 32)"
           echo "$MACOS_CERTIFICATE" | base64 --decode > "$cert_file"
-          curl -sL "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer" -o /tmp/DeveloperIDG2CA.cer
+          curl -sL \
+            "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer" \
+            -o "$ca_file"
           security create-keychain -p "$keychain_password" "$keychain_file"
           security set-keychain-settings -lut 21600 "$keychain_file"
           security unlock-keychain -p "$keychain_password" "$keychain_file"
-          security import /tmp/DeveloperIDG2CA.cer -k "$keychain_file" -T /usr/bin/codesign
-          security import "$cert_file" -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$keychain_file"
-          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain_file"
-          security list-keychains -d user -s "$keychain_file" $(security list-keychains -d user | tr -d '"')
-          identity="$(security find-identity -v -p codesigning "$keychain_file" | grep 'Developer ID Application' | head -1 | sed 's/.*"\(.*\)"/\1/')"
+          security import "$ca_file" -k "$keychain_file" -T /usr/bin/codesign
+          security import "$cert_file" \
+            -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 \
+            -k "$keychain_file"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$keychain_password" \
+            "$keychain_file"
+          security list-keychains -d user -s \
+            "$keychain_file" \
+            $(security list-keychains -d user | tr -d '"')
+          identity="$(
+            security find-identity -v -p codesigning "$keychain_file" \
+              | grep 'Developer ID Application' \
+              | head -1 \
+              | sed 's/.*"\(.*\)"/\1/'
+          )"
           echo "CODE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
           echo "TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> "$GITHUB_ENV"
           echo "KEYCHAIN_FILE=$keychain_file" >> "$GITHUB_ENV"
-          rm -f "$cert_file" /tmp/DeveloperIDG2CA.cer
 
-      - name: Build signed app and DMG
-        env:
-          DMG_PATH: dist/MDViewerPlus-macos.dmg
+      - name: Test, build, and audit both editions
         run: |
           chmod +x scripts/*.sh
-          scripts/build_release.sh
-          scripts/make_dmg.sh
+          scripts/test_editions.sh
+          for edition in lite full; do
+            EDITION="$edition" scripts/build_release.sh
+            EDITION="$edition" scripts/make_dmg.sh
+          done
 
-      - name: Notarize DMG
+      - name: Notarize both DMGs
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          DMG_PATH: dist/MDViewerPlus-macos.dmg
-        run: scripts/notarize_dmg.sh
+        run: |
+          for edition in Lite Full; do
+            DMG_PATH="dist/MDViewerPlus-$edition-macos.dmg" \
+              scripts/notarize_dmg.sh
+          done
 
       - name: Cleanup keychain
         if: always()
@@ -87,14 +105,17 @@ jobs:
           if [[ -n "${KEYCHAIN_FILE:-}" ]]; then
             security delete-keychain "$KEYCHAIN_FILE" 2>/dev/null || true
           fi
+          rm -rf .ci
 
-      - name: Upload workflow artifact
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: MDViewerPlus-macos-dmg
+          name: MDViewerPlus-${{ steps.release.outputs.version }}-macos
           path: |
-            dist/MDViewerPlus-macos.dmg
-            dist/MDViewerPlus-macos.dmg.sha256
+            dist/MDViewerPlus-Lite-macos.dmg
+            dist/MDViewerPlus-Lite-macos.dmg.sha256
+            dist/MDViewerPlus-Full-macos.dmg
+            dist/MDViewerPlus-Full-macos.dmg.sha256
 
       - name: Attach assets to GitHub Release
         env:
@@ -103,6 +124,13 @@ jobs:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --title "MDViewerPlus ${RELEASE_VERSION}" --notes "Signed and notarized macOS DMG."
+            gh release create "$RELEASE_TAG" \
+              --title "MDViewer+ ${RELEASE_VERSION}" \
+              --notes "Full is recommended. Lite is the minimum-footprint edition. Both are signed, notarized, offline, and share the same app identity."
           fi
-          gh release upload "$RELEASE_TAG" "dist/MDViewerPlus-macos.dmg" "dist/MDViewerPlus-macos.dmg.sha256" --clobber
+          gh release upload "$RELEASE_TAG" \
+            dist/MDViewerPlus-Lite-macos.dmg \
+            dist/MDViewerPlus-Lite-macos.dmg.sha256 \
+            dist/MDViewerPlus-Full-macos.dmg \
+            dist/MDViewerPlus-Full-macos.dmg.sha256 \
+            --clobber

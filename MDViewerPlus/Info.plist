@@ -12,6 +12,10 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>CFBundleShortVersionString</key>
     <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleGetInfoString</key>
+    <string>MDViewer+ $(MDVIEWER_EDITION_DISPLAY) $(MARKETING_VERSION) ($(CURRENT_PROJECT_VERSION))</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Torsten Mahr</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>

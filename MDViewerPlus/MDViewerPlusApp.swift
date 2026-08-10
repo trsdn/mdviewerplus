@@ -20,6 +20,7 @@ struct MDViewerPlusApp: App {
         }
         .commands {
             DocumentCommands()
+            SupportCommands()
 
             CommandGroup(after: .toolbar) {
                 Divider()
@@ -43,6 +44,16 @@ struct MDViewerPlusApp: App {
         Settings {
             ThemeSettingsView()
         }
+
+        Window("About MDViewer+", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
+
+        Window("MDViewer+ Help", id: "help") {
+            HelpView()
+        }
+        .windowResizability(.contentSize)
     }
 
     private func shortcut(for mode: AppearanceMode) -> KeyboardShortcut {

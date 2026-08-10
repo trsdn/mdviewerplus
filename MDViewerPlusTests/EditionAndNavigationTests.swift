@@ -11,6 +11,25 @@ final class EditionAndNavigationTests: XCTestCase {
         )
     }
 
+    func testSupportMetadataIsStableAndSecure() {
+        XCTAssertEqual(AppSupport.copyright, "Copyright © 2026 Torsten Mahr")
+        XCTAssertEqual(
+            AppSupport.websiteURL.absoluteString,
+            "https://trsdn.github.io/mdviewerplus/"
+        )
+        XCTAssertEqual(
+            AppSupport.sourceURL.absoluteString,
+            "https://github.com/trsdn/mdviewerplus"
+        )
+        XCTAssertEqual(
+            AppSupport.issueURL.absoluteString,
+            "https://github.com/trsdn/mdviewerplus/issues/new"
+        )
+        XCTAssertEqual(AppSupport.websiteURL.scheme, "https")
+        XCTAssertEqual(AppSupport.sourceURL.scheme, "https")
+        XCTAssertEqual(AppSupport.issueURL.scheme, "https")
+    }
+
     func testQuickOpenMatchingIsDeterministic() {
         let items = [
             "Reference.md", "README.md", "release-notes.md", "guide.markdown"

@@ -18,8 +18,13 @@ RESOURCES="$APP_PATH/Contents/Resources"
 PLIST="$APP_PATH/Contents/Info.plist"
 expected_name="$(tr '[:lower:]' '[:upper:]' <<< "${EDITION:0:1}")${EDITION:1}"
 
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" == "2.0.0" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" == "2.0.1" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" == "9" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :MDViewerEdition' "$PLIST")" == "$EDITION" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleGetInfoString' "$PLIST")" == \
+    "MDViewer+ $expected_name 2.0.1 (9)" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :NSHumanReadableCopyright' "$PLIST")" == \
+    "Copyright © 2026 Torsten Mahr" ]]
 
 if [[ "$EDITION" == "lite" ]]; then
   [[ -d "$RESOURCES/Common" && -d "$RESOURCES/Lite" ]]

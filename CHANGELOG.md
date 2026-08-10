@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1
+
+- Added native Help and custom About windows with edition, version, build,
+  copyright, project links, and direct issue reporting.
+- Updated the README and project website with support resources.
+
 ## 2.0.0
 
 - Added Lite and Full editions from one shared source tree with audited

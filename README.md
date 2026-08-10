@@ -2,7 +2,7 @@
 
 A native, offline macOS Markdown editor and viewer with live preview.
 
-MDViewer+ 2.0 ships from one source tree in two editions:
+MDViewer+ 2.0.1 ships from one source tree in two editions:
 
 | | Lite | Full |
 | --- | --- | --- |
@@ -79,6 +79,16 @@ xcodebuild -scheme MDViewerPlus-Full -configuration Release build
 | Reload | `Cmd R` |
 | Zoom in / out / actual size | `Cmd +` / `Cmd -` / `Cmd 0` |
 | System / light / dark appearance | `Cmd Shift 0` / `Cmd Shift 1` / `Cmd Shift 2` |
+| Help | `Cmd ?` |
+
+## Help and support
+
+Choose **Help > MDViewer+ Help** for the native in-app guide. **About
+MDViewer+** shows the installed Lite or Full edition, version, and build.
+
+- [MDViewer+ website](https://trsdn.github.io/mdviewerplus/)
+- [Source and documentation](https://github.com/trsdn/mdviewerplus)
+- [Report an issue](https://github.com/trsdn/mdviewerplus/issues/new)
 
 ## Security model
 

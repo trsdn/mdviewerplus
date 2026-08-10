@@ -85,8 +85,8 @@ targetTemplates:
         PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlus
         PRODUCT_NAME: "MDViewer+"
         PRODUCT_MODULE_NAME: MDViewerPlus
-        MARKETING_VERSION: "2.0.0"
-        CURRENT_PROJECT_VERSION: "8"
+        MARKETING_VERSION: "2.0.1"
+        CURRENT_PROJECT_VERSION: "9"
         INFOPLIST_FILE: MDViewerPlus/Info.plist
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"
@@ -127,6 +127,7 @@ targets:
     settings:
       base:
         MDVIEWER_EDITION: lite
+        MDVIEWER_EDITION_DISPLAY: Lite
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MDVIEWER_LITE"
 
   MDViewerPlusFull:
@@ -139,6 +140,7 @@ targets:
     settings:
       base:
         MDVIEWER_EDITION: full
+        MDVIEWER_EDITION_DISPLAY: Full
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MDVIEWER_FULL"
 
   MDViewerPlusLiteTests:

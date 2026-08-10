@@ -1,6 +1,6 @@
 {
   "name": "mdviewerplus-vendor",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Pinned build-time sources for MDViewer+ vendored web assets. Nothing here ships at runtime; scripts/vendor_web_assets.sh writes the shipped files into MDViewerPlus/Resources.",
   "license": "MIT",

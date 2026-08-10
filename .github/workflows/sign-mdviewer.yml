@@ -1,0 +1,102 @@
+name: Sign MDViewer macOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: MDViewer tag to build
+        required: true
+        default: v2.0.1
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sign-mdviewer:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: trsdn/mdviewer
+          ref: ${{ inputs.tag }}
+          path: mdviewer
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Import Developer ID certificate
+        shell: bash
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci
+          cert_file="$GITHUB_WORKSPACE/.ci/developer-id.p12"
+          ca_file="$GITHUB_WORKSPACE/.ci/DeveloperIDG2CA.cer"
+          keychain_file="$GITHUB_WORKSPACE/.ci/build.keychain-db"
+          keychain_password="$(openssl rand -base64 32)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$cert_file"
+          curl -sL \
+            "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer" \
+            -o "$ca_file"
+          security create-keychain -p "$keychain_password" "$keychain_file"
+          security set-keychain-settings -lut 21600 "$keychain_file"
+          security unlock-keychain -p "$keychain_password" "$keychain_file"
+          security import "$ca_file" -k "$keychain_file" -T /usr/bin/codesign
+          security import "$cert_file" \
+            -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 \
+            -k "$keychain_file"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$keychain_password" \
+            "$keychain_file"
+          security list-keychains -d user -s \
+            "$keychain_file" \
+            $(security list-keychains -d user | tr -d '"')
+          identity="$(
+            security find-identity -v -p codesigning "$keychain_file" \
+              | grep 'Developer ID Application' \
+              | head -1 \
+              | sed 's/.*"\(.*\)"/\1/'
+          )"
+          echo "CODE_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_FILE=$keychain_file" >> "$GITHUB_ENV"
+
+      - name: Build and notarize MDViewer Lite and Full
+        working-directory: mdviewer
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/*.sh
+          scripts/vendor_web_assets.sh --check
+          scripts/build_release.sh
+          for edition in Lite Full; do
+            dmg="dist/MDViewer-$edition-macos.dmg"
+            EDITION="$edition" DMG_PATH="$dmg" scripts/make_dmg.sh
+            DMG_PATH="$dmg" scripts/notarize_dmg.sh
+          done
+
+      - name: Upload notarized MDViewer assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: MDViewer-${{ inputs.tag }}-notarized
+          path: |
+            mdviewer/dist/MDViewer-Lite-macos.dmg
+            mdviewer/dist/MDViewer-Lite-macos.dmg.sha256
+            mdviewer/dist/MDViewer-Full-macos.dmg
+            mdviewer/dist/MDViewer-Full-macos.dmg.sha256
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          if [[ -n "${KEYCHAIN_FILE:-}" ]]; then
+            security delete-keychain "$KEYCHAIN_FILE" 2>/dev/null || true
+          fi
+          rm -rf .ci

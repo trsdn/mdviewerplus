@@ -18,5 +18,9 @@ vendor/node_modules/
 *.swp
 *~
 
+# Python
+__pycache__/
+*.pyc
+
 # Claude
 .claude/

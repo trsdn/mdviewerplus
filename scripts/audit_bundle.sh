@@ -18,11 +18,11 @@ RESOURCES="$APP_PATH/Contents/Resources"
 PLIST="$APP_PATH/Contents/Info.plist"
 expected_name="$(tr '[:lower:]' '[:upper:]' <<< "${EDITION:0:1}")${EDITION:1}"
 
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" == "2.0.1" ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" == "9" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" == "2.1.0" ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" == "10" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :MDViewerEdition' "$PLIST")" == "$EDITION" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleGetInfoString' "$PLIST")" == \
-    "MDViewer+ $expected_name 2.0.1 (9)" ]]
+    "MDViewer+ $expected_name 2.1.0 (10)" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :NSHumanReadableCopyright' "$PLIST")" == \
     "Copyright © 2026 Torsten Mahr" ]]
 
@@ -72,5 +72,12 @@ for entry in manifest["files"]:
     if digest != entry["sha256"]:
         raise SystemExit(f"Checksum mismatch: {entry['path']}")
 PY
+
+if [[ "$EDITION" == "lite" ]]; then
+  python3 scripts/check_artifact_size.py \
+    "$APP_PATH" \
+    config/artifact-size-baselines.json \
+    macos-lite-app-deterministic-zip
+fi
 
 echo "$expected_name bundle audit passed."

@@ -2,12 +2,12 @@
 
 A native, offline macOS Markdown editor and viewer with live preview.
 
-MDViewer+ 2.0.1 ships from one source tree in two editions:
+MDViewer+ 2.1.0 ships from one source tree in two editions:
 
 | | Lite | Full |
 | --- | --- | --- |
 | Recommended for | Minimum footprint | Most users |
-| Shared native features | Find, Quick Open, secure internal links, folder watcher, outline, editing, printing | Same |
+| Shared native features | Folder Navigator, Find, Quick Open, secure internal links, folder watcher, outline, editing, printing | Same |
 | Shared Markdown features | Footnotes, alerts, tasks, image zoom, code controls | Same |
 | Code highlighting | Custom Prism: Swift, JavaScript/TypeScript, JSON, Bash, Python, Rust, HTML, CSS | Lazy highlight.js common-language bundle |
 | Metadata | Raw Markdown | Lazy safe YAML frontmatter card |
@@ -24,6 +24,7 @@ edition replaces the other. **Full is the recommended download.**
 - Focus-aware Find: native `NSTextView` Find in the editor and `WKWebView.find`
   in the preview
 - Current-folder Quick Open with deterministic, dependency-free matching
+- An optional, read-only Folder Navigator across View, Split, and Edit modes
 - Secure relative Markdown links opened through the native document lifecycle
 - Debounced native folder events; no polling or background index
 - Searchable transient document outline with duplicate and Unicode heading IDs
@@ -71,6 +72,7 @@ xcodebuild -scheme MDViewerPlus-Full -configuration Release build
 | --- | --- |
 | Find / next / previous | `Cmd F` / `Cmd G` / `Cmd Shift G` |
 | Quick Open | `Cmd K` |
+| Show or hide Folder Navigator | `Cmd Shift B` |
 | Document Outline | `Cmd Shift O` |
 | Toggle View Mode | `Cmd E` |
 | Bold / Italic / Link | `Cmd B` / `Cmd I` / `Cmd Shift K` |
@@ -93,6 +95,18 @@ MDViewer+** shows the installed Lite or Full edition, version, and build.
 ## Security model
 
 - Release builds use App Sandbox and Hardened Runtime.
+- The Folder Navigator is local-only, collapsed by default, and uses an
+  explicitly authorized current or ancestor folder. Choose **File > Open
+  Folder…** to change its root and **Navigate > Reveal Current Document in
+  Folder Navigator** to locate the open file.
+- Folder contents load one directory at a time. Hidden items, packages,
+  symbolic links, non-regular files, and files other than `.md`, `.markdown`,
+  `.mdown`, and `.mkd` are excluded. Enumeration is bounded to depth 12, 500
+  direct children, and 5,000 loaded items. Native filesystem events refresh
+  only directories that are already loaded.
+- Opening from the navigator uses the normal document lifecycle. A clean
+  source window closes after a successful open; a source window with unsaved
+  edits stays open, and failures never discard edited text.
 - WebKit requires the sandbox network-client entitlement to launch its content
   process, but the render-page CSP blocks all connections and remote resources.
 - A restrictive CSP blocks network connections, frames, objects, workers,

@@ -85,8 +85,8 @@ targetTemplates:
         PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlus
         PRODUCT_NAME: "MDViewer+"
         PRODUCT_MODULE_NAME: MDViewerPlus
-        MARKETING_VERSION: "2.0.1"
-        CURRENT_PROJECT_VERSION: "9"
+        MARKETING_VERSION: "2.1.0"
+        CURRENT_PROJECT_VERSION: "10"
         INFOPLIST_FILE: MDViewerPlus/Info.plist
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"
@@ -99,6 +99,7 @@ targetTemplates:
           ENABLE_HARDENED_RUNTIME: true
           SWIFT_OPTIMIZATION_LEVEL: "-Osize"
           DEAD_CODE_STRIPPING: true
+          DEPLOYMENT_POSTPROCESSING: true
           STRIP_INSTALLED_PRODUCT: true
           STRIP_SWIFT_SYMBOLS: true
           STRIP_STYLE: "non-global"

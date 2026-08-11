@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.0
+
+- Added an optional, accessible, collapsed-by-default Folder Navigator to Lite
+  and Full across View, Split, and Edit modes.
+- Added secure lazy folder enumeration, explicit ancestor-folder
+  authorization, bounded loading, current-file reveal, and loaded-directory
+  filesystem refresh.
+- Added **File > Open Folder…**, **View > Folder Navigator** (`Cmd Shift B`),
+  a toolbar toggle, and a current-document reveal command.
+- Navigator opens retain folder access through the asynchronous native open.
+  Clean source windows close after success; edited source windows remain open,
+  and failed opens preserve the source and pending context safely.
+
 ## 2.0.1
 
 - Added native Help and custom About windows with edition, version, build,

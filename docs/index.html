@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="MDViewer+ 2.0.1 — native offline Markdown editing for macOS in Lite and Full editions.">
-  <title>MDViewer+ 2.0.1</title>
+  <meta name="description" content="MDViewer+ 2.1.0 — native offline Markdown editing for macOS in Lite and Full editions.">
+  <title>MDViewer+ 2.1.0</title>
   <link rel="icon" href="favicon.ico">
   <style>
     :root{color-scheme:light dark;font:16px/1.6 system-ui,-apple-system,sans-serif}
@@ -26,7 +26,7 @@
   <main>
     <section class="hero">
       <div>
-        <h1>MDViewer+ 2.0.1</h1>
+        <h1>MDViewer+ 2.1.0</h1>
         <p>A fast native macOS Markdown editor and viewer with live preview,
           secure local files, and complete offline operation.</p>
         <div class="actions">
@@ -43,7 +43,7 @@
       <thead><tr><th></th><th>Lite</th><th>Full</th></tr></thead>
       <tbody>
         <tr><th>Best for</th><td>Minimum footprint</td><td>Most users</td></tr>
-        <tr><th>Shared features</th><td colspan="2">Find, Quick Open, secure internal links, native folder watcher, outline, footnotes, alerts, tasks, image zoom, code controls, editing, themes, print</td></tr>
+        <tr><th>Shared features</th><td colspan="2">Folder Navigator, Find, Quick Open, secure internal links, native folder watcher, outline, footnotes, alerts, tasks, image zoom, code controls, editing, themes, print</td></tr>
         <tr><th>Highlighting</th><td>Custom Prism language set</td><td>Lazy broad highlight.js</td></tr>
         <tr><th>YAML metadata</th><td>—</td><td>Lazy safe card</td></tr>
         <tr><th>Mermaid</th><td>—</td><td>Lazy complete offline ESM distribution with pan and zoom</td></tr>
@@ -54,6 +54,7 @@
 
     <h2>Native workflow</h2>
     <div class="cards">
+      <div class="card"><strong>Folder Navigator</strong><br>A collapsed-by-default, read-only sidebar lazily browses an explicitly authorized folder across View, Split, and Edit modes.</div>
       <div class="card"><strong>Focus-aware Find</strong><br>Cmd F targets the active editor or preview pane, with next and previous commands.</div>
       <div class="card"><strong>Quick Open</strong><br>Cmd K searches only the authorized current folder. There is no global index.</div>
       <div class="card"><strong>Document outline</strong><br>Cmd Shift O opens a searchable, transient heading navigator.</div>
@@ -61,6 +62,11 @@
       <div class="card"><strong>Rich Markdown</strong><br>Footnotes, GitHub alerts, accessible tasks, image inspection, and code controls work in preview and print.</div>
       <div class="card"><strong>Full, only when needed</strong><br>Ordinary Full documents do not initialize highlight.js, js-yaml, Mermaid, or svg-pan-zoom.</div>
     </div>
+    <p>The local-only navigator excludes hidden items, packages, symbolic
+      links, and unsupported files. It is bounded to 12 levels, 500 direct
+      children, and 5,000 loaded items; filesystem events refresh only folders
+      already loaded. Opening a file never closes a source window with unsaved
+      edits.</p>
 
     <h2>Security by construction</h2>
     <p>MDViewer+ combines App Sandbox, Hardened Runtime, a restrictive CSP,
@@ -70,6 +76,7 @@
 
     <h2>Key shortcuts</h2>
     <p><code>Cmd F</code> Find · <code>Cmd G</code> Next ·
+      <code>Cmd Shift B</code> Folder Navigator ·
       <code>Cmd K</code> Quick Open · <code>Cmd Shift O</code> Outline ·
       <code>Cmd E</code> View mode · <code>Cmd Shift K</code> Format link ·
       <code>Cmd P</code> Print</p>

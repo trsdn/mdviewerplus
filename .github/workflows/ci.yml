@@ -34,7 +34,7 @@ jobs:
       - name: Upload audited app bundles
         uses: actions/upload-artifact@v5
         with:
-          name: MDViewerPlus-2.0.1-app-bundles
+          name: MDViewerPlus-2.1.0-app-bundles
           path: |
             dist/lite/MDViewer+.app
             dist/full/MDViewer+.app

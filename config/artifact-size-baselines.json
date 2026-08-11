@@ -1,0 +1,10 @@
+{
+  "macos-lite-app-deterministic-zip": {
+    "bytes": 3456669,
+    "version": "2.0.1",
+    "platform": "macOS",
+    "packageFormat": "deterministic ZIP measurement of the Lite .app",
+    "source": "MDViewerPlus-Lite-macos.dmg from https://github.com/trsdn/mdviewerplus/releases/tag/v2.0.1",
+    "sourceAssetBytes": 1387094
+  }
+}

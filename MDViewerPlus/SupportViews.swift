@@ -90,10 +90,30 @@ struct HelpView: View {
                 }
 
                 helpSection("Find and navigate") {
+                    shortcut("Show or hide Folder Navigator", "⇧⌘B")
+                    Text(
+                        "The optional Folder Navigator is hidden by default and " +
+                        "stays available in View, Split, and Edit modes. Use " +
+                        "File > Open Folder… to authorize the current folder or " +
+                        "a parent folder, and Navigate > Reveal Current Document " +
+                        "in Folder Navigator to locate the open file."
+                    )
                     shortcut("Find", "⌘F")
                     shortcut("Quick Open in the current folder", "⌘K")
                     shortcut("Document Outline", "⇧⌘O")
                     shortcut("Previous or next Markdown file", "⌥⌘←  ⌥⌘→")
+                }
+
+                helpSection("Folder Navigator safety") {
+                    Text(
+                        "The navigator is read-only and local-only. It loads one " +
+                        "directory at a time, excludes hidden items, packages, " +
+                        "symbolic links, and unsupported files, and limits browsing " +
+                        "to 12 levels, 500 children per folder, and 5,000 loaded " +
+                        "items. Only loaded folders refresh after filesystem events. " +
+                        "Opening another file keeps a source window with unsaved " +
+                        "edits open."
+                    )
                 }
 
                 helpSection("Edit and preview") {

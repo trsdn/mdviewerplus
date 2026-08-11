@@ -1,42 +1,29 @@
-name: Release macOS Lite and Full
+name: Sign MDViewer macOS Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to build, for example v2.1.0
+        description: MDViewer tag to build
         required: true
+        default: v2.1.0
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  macos-dmgs:
-    name: Build signed and notarized Lite and Full DMGs
-    runs-on: macos-latest
+  sign-mdviewer:
+    runs-on: macos-15
+    timeout-minutes: 45
     steps:
-      - name: Resolve release metadata
-        id: release
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            tag="${{ inputs.tag }}"
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.release.outputs.tag }}
-          fetch-depth: 0
+          repository: trsdn/mdviewer
+          ref: ${{ inputs.tag }}
+          path: mdviewer
 
-      - name: Install build tools
+      - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Import Developer ID certificate
@@ -79,25 +66,32 @@ jobs:
           echo "TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> "$GITHUB_ENV"
           echo "KEYCHAIN_FILE=$keychain_file" >> "$GITHUB_ENV"
 
-      - name: Test, build, and audit both editions
-        run: |
-          chmod +x scripts/*.sh
-          scripts/test_editions.sh
-          for edition in lite full; do
-            EDITION="$edition" scripts/build_release.sh
-            EDITION="$edition" scripts/make_dmg.sh
-          done
-
-      - name: Notarize both DMGs
+      - name: Build and notarize MDViewer Lite and Full
+        working-directory: mdviewer
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
+          set -euo pipefail
+          chmod +x scripts/*.sh
+          scripts/vendor_web_assets.sh --check
+          scripts/build_release.sh
           for edition in Lite Full; do
-            DMG_PATH="dist/MDViewerPlus-$edition-macos.dmg" \
-              scripts/notarize_dmg.sh
+            dmg="dist/MDViewer-$edition-macos.dmg"
+            EDITION="$edition" DMG_PATH="$dmg" scripts/make_dmg.sh
+            DMG_PATH="$dmg" scripts/notarize_dmg.sh
           done
+
+      - name: Upload notarized MDViewer assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: MDViewer-${{ inputs.tag }}-notarized
+          path: |
+            mdviewer/dist/MDViewer-Lite-macos.dmg
+            mdviewer/dist/MDViewer-Lite-macos.dmg.sha256
+            mdviewer/dist/MDViewer-Full-macos.dmg
+            mdviewer/dist/MDViewer-Full-macos.dmg.sha256
 
       - name: Cleanup keychain
         if: always()
@@ -106,31 +100,3 @@ jobs:
             security delete-keychain "$KEYCHAIN_FILE" 2>/dev/null || true
           fi
           rm -rf .ci
-
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v5
-        with:
-          name: MDViewerPlus-${{ steps.release.outputs.version }}-macos
-          path: |
-            dist/MDViewerPlus-Lite-macos.dmg
-            dist/MDViewerPlus-Lite-macos.dmg.sha256
-            dist/MDViewerPlus-Full-macos.dmg
-            dist/MDViewerPlus-Full-macos.dmg.sha256
-
-      - name: Attach assets to GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" \
-              --title "MDViewer+ ${RELEASE_VERSION}" \
-              --notes "Full is recommended. Lite is the minimum-footprint edition. Both are signed, notarized, offline, and share the same app identity."
-          fi
-          gh release upload "$RELEASE_TAG" \
-            dist/MDViewerPlus-Lite-macos.dmg \
-            dist/MDViewerPlus-Lite-macos.dmg.sha256 \
-            dist/MDViewerPlus-Full-macos.dmg \
-            dist/MDViewerPlus-Full-macos.dmg.sha256 \
-            --clobber

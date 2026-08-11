@@ -95,6 +95,7 @@ struct ContentView: View {
     @StateObject private var windowState = DocumentWindowState()
     @StateObject private var printController = MarkdownPrintController()
     @StateObject private var folderWatcher = MarkdownFolderWatcher()
+    @StateObject private var folderNavigator = FolderNavigatorState()
 
     private var palette: ThemePalette {
         ThemeRegistry.resolve(
@@ -106,9 +107,16 @@ struct ContentView: View {
     }
 
     var body: some View {
-        Group {
-            switch viewMode {
-            case .view:
+        NavigationSplitView(columnVisibility: navigatorColumnVisibility) {
+            FolderNavigatorSidebar(
+                state: folderNavigator,
+                chooseRoot: chooseFolderNavigatorRoot,
+                activate: openFromFolderNavigator
+            )
+        } detail: {
+            Group {
+                switch viewMode {
+                case .view:
                 MarkdownWebView(
                     text: document.text,
                     fileURL: fileURL,
@@ -126,7 +134,7 @@ struct ContentView: View {
                     onFindResult: updatePreviewFindStatus,
                     onOpenRelativeLink: openRelativeLink
                 )
-            case .split:
+                case .split:
                 HSplitView {
                     MarkdownEditorView(
                         text: $document.text,
@@ -160,7 +168,7 @@ struct ContentView: View {
                     .frame(minWidth: 200)
                 }
                 .background(palette.colors.splitter.swiftUIColor)
-            case .edit:
+                case .edit:
                 MarkdownEditorView(
                     text: $document.text,
                     palette: palette,
@@ -173,6 +181,7 @@ struct ContentView: View {
                     onFocus: { activePane = .editor }
                 )
             }
+        }
         }
         .background(palette.colors.background.swiftUIColor)
         .tint(palette.colors.splitterHover.swiftUIColor)
@@ -194,10 +203,38 @@ struct ContentView: View {
         }
         .focusedSceneValue(\.documentCommandActions, commandActions)
         .task(id: fileURL) {
+#if DEBUG
+            if fileURL == nil,
+               let testDocument = UITestHooks.consumeInitialDocumentURL() {
+                do {
+                    try await openDocument(at: testDocument)
+                    windowState.window?.close()
+                } catch {
+                    documentAlert = .error(
+                        title: "Couldn’t Open UI Test Document",
+                        message: error.localizedDescription
+                    )
+                }
+                return
+            }
+#endif
             resetFolderAccess()
+            await folderNavigator.initialize(for: fileURL)
         }
         .onDisappear {
             folderWatcher.stop()
+            folderNavigator.reset()
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    folderNavigator.toggleVisibility(documentURL: fileURL)
+                } label: {
+                    Label("Folder Navigator", systemImage: "sidebar.left")
+                }
+                .help("Folder Navigator (⇧⌘B)")
+                .disabled(fileURL == nil)
+            }
         }
         .sheet(isPresented: $isQuickOpenPresented) {
             QuickOpenPalette(items: quickOpenItems) { url in
@@ -230,6 +267,18 @@ struct ContentView: View {
         }
     }
 
+    private var navigatorColumnVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { folderNavigator.isVisible ? .all : .detailOnly },
+            set: { visibility in
+                let visible = visibility != .detailOnly
+                if folderNavigator.isVisible != visible {
+                    folderNavigator.toggleVisibility(documentURL: fileURL)
+                }
+            }
+        )
+    }
+
     private var commandActions: DocumentCommandActions {
         DocumentCommandActions(
             canReload: fileURL != nil,
@@ -244,6 +293,10 @@ struct ContentView: View {
                 && !isRequestingResourceAccess,
             canShowOutline: !outlineEntries.isEmpty,
             canDismissFind: isPreviewFindPresented,
+            canToggleFolderNavigator: fileURL != nil,
+            canChooseFolderNavigatorRoot: fileURL != nil && !isNavigating,
+            canRevealInFolderNavigator:
+                folderNavigator.currentRelativePath != nil,
             navigationPreparationTitle:
                 SiblingNavigationFreshnessPolicy.preparationCommandTitle(
                     hasFolderAccess: folderAccess != nil
@@ -260,6 +313,11 @@ struct ContentView: View {
             find: handleFind,
             quickOpen: presentQuickOpen,
             showOutline: { isOutlinePresented = true },
+            toggleFolderNavigator: {
+                folderNavigator.toggleVisibility(documentURL: fileURL)
+            },
+            chooseFolderNavigatorRoot: chooseFolderNavigatorRoot,
+            revealInFolderNavigator: folderNavigator.revealCurrentDocument,
             format: requestFormat
         )
     }
@@ -705,7 +763,7 @@ struct ContentView: View {
                 case .relativeResources:
                     resourceAccessDeclined = true
                     showResourceError(error)
-                case .siblingNavigation, .navigationTools:
+                case .siblingNavigation, .navigationTools, .folderNavigator:
                     showNavigationError(
                         title: "Couldn’t Enable Folder Navigation",
                         error: error
@@ -766,11 +824,13 @@ struct ContentView: View {
 
     private func openNativeDocument(
         at destination: URL,
-        fragment: String?
+        fragment: String?,
+        navigatorAccess: FolderAccessLease? = nil,
+        navigatorContextToken: UUID? = nil
     ) {
         guard !isNavigating else { return }
         isNavigating = true
-        let access = folderAccess
+        let access = navigatorAccess ?? folderAccess
         let sourceWindow = windowState.window
 
         Task { @MainActor in
@@ -796,6 +856,12 @@ struct ContentView: View {
                     sourceWindow: sourceWindow
                 )
             } catch {
+                if navigatorAccess != nil {
+                    FolderNavigatorContextStore.shared.clear(
+                        for: destination,
+                        matching: navigatorContextToken
+                    )
+                }
                 if fragment != nil {
                     _ = PendingDocumentFragmentStore.shared.consume(
                         for: destination
@@ -806,6 +872,58 @@ struct ContentView: View {
                     message: error.localizedDescription
                 )
             }
+        }
+    }
+
+    private func chooseFolderNavigatorRoot() {
+        guard let fileURL, !isNavigating else { return }
+        Task { @MainActor in
+            do {
+                guard let access = try await FolderAccessStore.shared.requestAccess(
+                    for: fileURL,
+                    purpose: .folderNavigator,
+                    attachedTo: windowState.window
+                ) else { return }
+                folderNavigator.isVisible = true
+                await folderNavigator.setRoot(access, documentURL: fileURL)
+            } catch {
+                showNavigationError(
+                    title: "Couldn’t Open Folder",
+                    error: error
+                )
+            }
+        }
+    }
+
+    private func openFromFolderNavigator(_ node: FolderNavigatorNode) {
+        do {
+            guard !isNavigating else { return }
+            let destination = try folderNavigator.resolvedFile(for: node)
+            if let fileURL,
+               FolderNavigatorPath.canonical(destination)
+                == FolderNavigatorPath.canonical(fileURL) {
+                folderNavigator.revealCurrentDocument()
+                return
+            }
+            guard let context = folderNavigator.pendingContext(),
+                  let navigatorAccess = folderNavigator.rootLease else {
+                throw FolderNavigatorError.accessDenied
+            }
+            let token = FolderNavigatorContextStore.shared.store(
+                context,
+                for: destination
+            )
+            openNativeDocument(
+                at: destination,
+                fragment: nil,
+                navigatorAccess: navigatorAccess,
+                navigatorContextToken: token
+            )
+        } catch {
+            showNavigationError(
+                title: "Couldn’t Open Markdown File",
+                error: error
+            )
         }
     }
 

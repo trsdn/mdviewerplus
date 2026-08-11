@@ -55,6 +55,9 @@ struct DocumentCommandActions {
     let canQuickOpen: Bool
     let canShowOutline: Bool
     let canDismissFind: Bool
+    let canToggleFolderNavigator: Bool
+    let canChooseFolderNavigatorRoot: Bool
+    let canRevealInFolderNavigator: Bool
     let navigationPreparationTitle: String
     let reload: () -> Void
     let navigatePrevious: () -> Void
@@ -68,6 +71,9 @@ struct DocumentCommandActions {
     let find: (FindCommand) -> Void
     let quickOpen: () -> Void
     let showOutline: () -> Void
+    let toggleFolderNavigator: () -> Void
+    let chooseFolderNavigatorRoot: () -> Void
+    let revealInFolderNavigator: () -> Void
     let format: (MarkdownFormatCommand) -> Void
 }
 
@@ -95,6 +101,13 @@ struct DocumentCommands: Commands {
         }
 
         CommandGroup(after: .newItem) {
+            Button("Open Folder…") {
+                actions?.chooseFolderNavigatorRoot()
+            }
+            .disabled(actions?.canChooseFolderNavigatorRoot != true)
+
+            Divider()
+
             Button(
                 actions?.navigationPreparationTitle
                     ?? "Enable Sibling Navigation…"
@@ -117,6 +130,14 @@ struct DocumentCommands: Commands {
         }
 
         CommandGroup(after: .toolbar) {
+            Button("Folder Navigator") {
+                actions?.toggleFolderNavigator()
+            }
+            .keyboardShortcut("b", modifiers: [.command, .shift])
+            .disabled(actions?.canToggleFolderNavigator != true)
+
+            Divider()
+
             Button("Reload") {
                 actions?.reload()
             }
@@ -179,6 +200,13 @@ struct DocumentCommands: Commands {
         }
 
         CommandMenu("Navigate") {
+            Button("Reveal Current Document in Folder Navigator") {
+                actions?.revealInFolderNavigator()
+            }
+            .disabled(actions?.canRevealInFolderNavigator != true)
+
+            Divider()
+
             Button("Quick Open…") {
                 actions?.quickOpen()
             }

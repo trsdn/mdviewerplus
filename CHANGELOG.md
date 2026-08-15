@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.0
+
+- Replaced the document-per-window model with an in-window tab workspace:
+  opening a file from the Folder Navigator now reuses the current tab instead
+  of spawning a window, so tab switches and Finder opens no longer flicker.
+- Added a tab bar with a `+` button that appears only once a second tab exists,
+  plus **New Tab** (`Cmd T`), **Close Tab** (`Cmd W`) and a Folder Navigator
+  **Open in New Tab** context command.
+- Added explicit **Open…**, **Save**, and **Save As…** commands with an
+  unsaved-changes prompt when closing tabs or windows.
+- Finder and Dock opens now land as a tab in the active window instead of
+  creating an extra window.
+- One shared Folder Navigator per window: the sidebar keeps its folder and
+  scroll state across tabs, and the duplicate toolbar toggle is gone.
+- Fixed the sidebar toggle and `Cmd Shift B` failing to hide the navigator.
+- Replaced the misleading "new folder" glyph on the navigator's parent-folder
+  control and removed the stray titlebar rule and background shift in Edit
+  mode.
+
 ## 2.1.0
 
 - Added an optional, accessible, collapsed-by-default Folder Navigator to Lite

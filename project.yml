@@ -85,8 +85,8 @@ targetTemplates:
         PRODUCT_BUNDLE_IDENTIFIER: com.torstenmahr.MDViewerPlus
         PRODUCT_NAME: "MDViewer+"
         PRODUCT_MODULE_NAME: MDViewerPlus
-        MARKETING_VERSION: "2.1.0"
-        CURRENT_PROJECT_VERSION: "10"
+        MARKETING_VERSION: "2.2.0"
+        CURRENT_PROJECT_VERSION: "11"
         INFOPLIST_FILE: MDViewerPlus/Info.plist
         GENERATE_INFOPLIST_FILE: false
         SWIFT_VERSION: "5.9"

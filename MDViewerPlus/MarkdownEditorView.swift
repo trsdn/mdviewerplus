@@ -18,6 +18,7 @@ struct MarkdownEditorView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSTextView.scrollableTextView()
+        Self.configureScrollerBehavior(scrollView)
         guard let textView = scrollView.documentView as? NSTextView else {
             return scrollView
         }
@@ -63,6 +64,14 @@ struct MarkdownEditorView: NSViewRepresentable {
         scrollView.contentView.postsBoundsChangedNotifications = true
 
         return scrollView
+    }
+
+    static func configureScrollerBehavior(_ scrollView: NSScrollView) {
+        scrollView.scrollerStyle = .overlay
+        scrollView.autohidesScrollers = true
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.horizontalScrollElasticity = .none
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
@@ -169,13 +178,14 @@ struct MarkdownEditorView: NSViewRepresentable {
         scrollView.appearance = palette.category.appearance
         textView.appearance = palette.category.appearance
         textView.backgroundColor = palette.colors.background.nsColor
+        scrollView.contentView.backgroundColor = palette.colors.background.nsColor
         textView.textColor = palette.colors.foreground.nsColor
         textView.insertionPointColor = palette.colors.caret.nsColor
         textView.selectedTextAttributes = [
             .backgroundColor: palette.colors.selectionBackground.nsColor,
             .foregroundColor: palette.colors.selectionForeground.nsColor,
         ]
-        scrollView.backgroundColor = palette.colors.gutterBackground.nsColor
+        scrollView.backgroundColor = palette.colors.background.nsColor
     }
 
     class Coordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate {

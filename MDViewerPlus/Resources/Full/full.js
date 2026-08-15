@@ -69,7 +69,6 @@
 
   /* ---------------------------------------------------------- frontmatter */
 
-  const FRONTMATTER_PATTERN = /^\uFEFF?---[ \t]*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
   const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
   function boundedDepth(value, depth, budget) {
@@ -141,12 +140,23 @@
   function buildFrontmatterCard(data) {
     const card = document.createElement("details");
     card.className = "md-frontmatter";
-    card.open = false;
+    card.open = true;
 
     const summary = document.createElement("summary");
     summary.className = "md-frontmatter-summary";
     const keys = Object.keys(data);
-    summary.textContent = `Metadata (${keys.length} ${keys.length === 1 ? "entry" : "entries"})`;
+    const label = document.createElement("span");
+    label.textContent = `Metadata (${keys.length} ${keys.length === 1 ? "entry" : "entries"})`;
+    summary.appendChild(label);
+    if (keys.length > 0) {
+      const preview = document.createElement("span");
+      preview.className = "md-frontmatter-key-preview";
+      preview.textContent = keys
+        .slice(0, 3)
+        .map((key) => formatScalar(key))
+        .join(", ") + (keys.length > 3 ? ", …" : "");
+      summary.appendChild(preview);
+    }
     card.appendChild(summary);
 
     const list = document.createElement("dl");
@@ -170,25 +180,23 @@
     return card;
   }
 
-  window.__mdviewerReadFrontmatter = async function (markdown) {
-    const match = FRONTMATTER_PATTERN.exec(markdown);
-    if (!match) return null; // js-yaml is never imported without a delimiter.
-
-    // The frontmatter block is removed exactly once regardless of the outcome so
-    // the raw YAML never leaks into the rendered Markdown body.
-    const body = markdown.slice(match[0].length);
-    const yamlSource = match[1];
+  window.__mdviewerReadFrontmatter = async function (source, body) {
+    const yamlSource = String(source ?? "");
+    const markdownBody = String(body ?? "");
 
     if (yamlSource.length > LIMITS.frontmatterMaxBytes) {
-      return { body, card: localError("Frontmatter is too large to display.") };
+      return {
+        body: markdownBody,
+        card: localError("Frontmatter is too large to display."),
+      };
     }
-    const yamlLines = yamlSource.split(/\r?\n/);
+    const yamlLines = yamlSource.split(/\r\n|\r|\n/);
     if (
       yamlLines.length > LIMITS.frontmatterMaxNodes ||
       /(^|[\s,[{])[&*][A-Za-z0-9_-]+/m.test(yamlSource)
     ) {
       return {
-        body,
+        body: markdownBody,
         card: localError(
           "Frontmatter was rejected: anchors, aliases, or excessive collections are not supported."
         ),
@@ -199,7 +207,10 @@
     try {
       yaml = await loadModule("yaml", "js-yaml.esm.min.mjs");
     } catch {
-      return { body, card: localError("Frontmatter support could not be loaded.") };
+      return {
+        body: markdownBody,
+        card: localError("Frontmatter support could not be loaded."),
+      };
     }
 
     let data;
@@ -211,21 +222,29 @@
       });
     } catch (error) {
       const message = error && error.reason ? error.reason : "invalid YAML";
-      return { body, card: localError(`Frontmatter could not be parsed: ${message}`) };
+      return {
+        body: markdownBody,
+        card: localError(`Frontmatter could not be parsed: ${message}`),
+      };
     }
 
-    if (data === null || data === undefined) return { body, card: null };
+    if (data === null || data === undefined) {
+      return { body: markdownBody, card: null };
+    }
     if (typeof data !== "object" || Array.isArray(data)) {
-      return { body, card: localError("Frontmatter must be a mapping.") };
+      return {
+        body: markdownBody,
+        card: localError("Frontmatter must be a mapping."),
+      };
     }
     if (!boundedDepth(data, 0, { nodes: 0, seen: new WeakSet() })) {
       return {
-        body,
+        body: markdownBody,
         card: localError("Frontmatter was rejected: it is too deep, too large, or self-referential."),
       };
     }
 
-    return { body, card: buildFrontmatterCard(data) };
+    return { body: markdownBody, card: buildFrontmatterCard(data) };
   };
 
   /* ----------------------------------------------------------- highlight */
@@ -298,6 +317,7 @@
     generation: 0,
     pending: [],
     observer: null,
+    active: new Set(),
     initialized: false,
     counter: 0,
   };
@@ -364,9 +384,51 @@
     return mermaid;
   }
 
+  function teardownPanZoom(container) {
+    const resizeObserver = container.__mdviewerResizeObserver;
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      container.__mdviewerResizeObserver = null;
+    }
+    if (container.__mdviewerFitFrame) {
+      cancelAnimationFrame(container.__mdviewerFitFrame);
+      container.__mdviewerFitFrame = 0;
+    }
+
+    const instance = container.__mdviewerPanZoom;
+    if (instance && typeof instance.destroy === "function") {
+      try {
+        instance.destroy();
+      } catch {
+        /* already detached */
+      }
+    }
+    container.__mdviewerPanZoom = null;
+
+    const controls = container.querySelector(".md-diagram-controls");
+    if (controls) controls.remove();
+  }
+
+  function teardownActiveDiagrams() {
+    for (const container of diagrams.active) teardownPanZoom(container);
+    diagrams.active.clear();
+  }
+
+  function applyDiagramAspectRatio(stage, svg) {
+    const viewBox = svg.viewBox && svg.viewBox.baseVal;
+    if (!viewBox || viewBox.width <= 0 || viewBox.height <= 0) return;
+    const inset = 48;
+    stage.style.setProperty(
+      "--md-diagram-aspect-ratio",
+      `${viewBox.width + inset} / ${viewBox.height + inset}`
+    );
+  }
+
   async function attachPanZoom(container, svg) {
     try {
       const svgPanZoom = (await loadModule("panZoom", "svg-pan-zoom.esm.min.mjs")).default;
+      if (!svg.isConnected || svg.closest(".md-diagram") !== container) return;
+
       svg.setAttribute("width", "100%");
       svg.setAttribute("height", "100%");
       const instance = svgPanZoom(svg, {
@@ -384,6 +446,8 @@
 
       const controls = document.createElement("div");
       controls.className = "md-diagram-controls";
+      controls.setAttribute("role", "group");
+      controls.setAttribute("aria-label", "Diagram zoom controls");
       const button = (text, label, action) => {
         const element = document.createElement("button");
         element.type = "button";
@@ -405,6 +469,20 @@
       container.appendChild(controls);
 
       const stage = svg.parentElement;
+      const fit = () => {
+        if (container.__mdviewerPanZoom !== instance || !svg.isConnected) return;
+        instance.resize();
+        instance.fit();
+        instance.center();
+      };
+      const scheduleFit = () => {
+        if (container.__mdviewerFitFrame) return;
+        container.__mdviewerFitFrame = requestAnimationFrame(() => {
+          container.__mdviewerFitFrame = 0;
+          fit();
+        });
+      };
+
       stage.setAttribute("tabindex", "0");
       stage.setAttribute("role", "group");
       stage.setAttribute("aria-label", "Diagram: use arrow keys to pan, plus and minus to zoom");
@@ -426,6 +504,24 @@
           default: break;
         }
       });
+
+      scheduleFit();
+      if (typeof ResizeObserver === "function") {
+        let lastWidth = -1;
+        let lastHeight = -1;
+        const resizeObserver = new ResizeObserver((entries) => {
+          const entry = entries[entries.length - 1];
+          if (!entry) return;
+          const width = Math.round(entry.contentRect.width * 2) / 2;
+          const height = Math.round(entry.contentRect.height * 2) / 2;
+          if (width === lastWidth && height === lastHeight) return;
+          lastWidth = width;
+          lastHeight = height;
+          scheduleFit();
+        });
+        resizeObserver.observe(stage);
+        container.__mdviewerResizeObserver = resizeObserver;
+      }
     } catch {
       /* Pan and zoom is an enhancement; a static diagram remains usable. */
     }
@@ -435,6 +531,7 @@
     const container = document.createElement("div");
     container.className = "md-diagram";
     container.setAttribute("data-md-diagram", "pending");
+    diagrams.active.add(container);
     // The definition is retained so theme changes, retries, and printing can
     // rerender without reparsing the document.
     container.__mdviewerSource = block.code.textContent;
@@ -497,7 +594,9 @@
     }
 
     const stage = container.querySelector(".md-diagram-stage");
+    teardownPanZoom(container);
     stage.replaceChildren(svg);
+    applyDiagramAspectRatio(stage, svg);
     container.setAttribute("data-md-diagram", "rendered");
     const fallback = container.querySelector(".md-diagram-source");
     if (fallback) fallback.hidden = true;
@@ -510,6 +609,7 @@
   }
 
   function failDiagram(container, message) {
+    teardownPanZoom(container);
     container.setAttribute("data-md-diagram", "failed");
     const fallback = container.querySelector(".md-diagram-source");
     if (fallback) fallback.hidden = false; // Original source is restored.
@@ -538,6 +638,7 @@
     diagrams.generation = generation;
     diagrams.pending = [];
     teardownObserver();
+    teardownActiveDiagrams();
     if (blocks.length === 0) return;
 
     const themeCategory = window.__mdviewerInternals.state.themeCategory;
@@ -589,17 +690,7 @@
     if (containers.length === 0) return;
     diagrams.generation = generation;
     for (const container of containers) {
-      const instance = container.__mdviewerPanZoom;
-      if (instance && typeof instance.destroy === "function") {
-        try {
-          instance.destroy();
-        } catch {
-          /* already detached */
-        }
-        container.__mdviewerPanZoom = null;
-      }
-      const controls = container.querySelector(".md-diagram-controls");
-      if (controls) controls.remove();
+      teardownPanZoom(container);
     }
     diagrams.pending = containers;
     drain(generation, themeCategory);

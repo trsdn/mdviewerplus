@@ -58,6 +58,8 @@ struct DocumentCommandActions {
     let canToggleFolderNavigator: Bool
     let canChooseFolderNavigatorRoot: Bool
     let canRevealInFolderNavigator: Bool
+    let canSave: Bool
+    let canCloseTab: Bool
     let navigationPreparationTitle: String
     let reload: () -> Void
     let navigatePrevious: () -> Void
@@ -74,6 +76,11 @@ struct DocumentCommandActions {
     let toggleFolderNavigator: () -> Void
     let chooseFolderNavigatorRoot: () -> Void
     let revealInFolderNavigator: () -> Void
+    let newTab: () -> Void
+    let closeTab: () -> Void
+    let openFile: () -> Void
+    let save: () -> Void
+    let saveAs: () -> Void
     let format: (MarkdownFormatCommand) -> Void
 }
 
@@ -100,7 +107,41 @@ struct DocumentCommands: Commands {
             .disabled(actions == nil)
         }
 
+        CommandGroup(replacing: .saveItem) {
+            Button("Save") {
+                actions?.save()
+            }
+            .keyboardShortcut("s", modifiers: .command)
+            .disabled(actions == nil)
+
+            Button("Save As…") {
+                actions?.saveAs()
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(actions == nil)
+        }
+
         CommandGroup(after: .newItem) {
+            Button("New Tab") {
+                actions?.newTab()
+            }
+            .keyboardShortcut("t", modifiers: .command)
+            .disabled(actions == nil)
+
+            Button("Open…") {
+                actions?.openFile()
+            }
+            .keyboardShortcut("o", modifiers: .command)
+            .disabled(actions == nil)
+
+            Button("Close Tab") {
+                actions?.closeTab()
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .disabled(actions?.canCloseTab != true)
+
+            Divider()
+
             Button("Open Folder…") {
                 actions?.chooseFolderNavigatorRoot()
             }

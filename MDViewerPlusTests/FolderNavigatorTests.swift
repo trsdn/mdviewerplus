@@ -359,6 +359,39 @@ final class FolderNavigatorTests: XCTestCase {
         )
     }
 
+    func testNavigatorRowsUseFixedColumnsAndIndentationGrid() {
+        let metrics = FolderNavigatorSidebar.NavigatorRowMetrics.self
+        XCTAssertEqual(metrics.indentationStep, 14)
+        XCTAssertEqual(metrics.indentationWidth(for: 0), 0)
+        XCTAssertEqual(metrics.indentationWidth(for: 3), 42)
+        XCTAssertEqual(metrics.disclosureWidth, 12)
+        XCTAssertEqual(metrics.iconWidth, 16)
+        XCTAssertEqual(metrics.currentIndicatorWidth, 10)
+        XCTAssertEqual(metrics.columnSpacing, 4)
+    }
+
+    func testNavigatorSelectionAndCurrentDocumentAreIndependent() {
+        let selected = FolderNavigatorSidebar.rowState(
+            relativePath: "selected.markdown",
+            selectedRelativePath: "selected.markdown",
+            currentRelativePath: "current.md"
+        )
+        let current = FolderNavigatorSidebar.rowState(
+            relativePath: "current.md",
+            selectedRelativePath: "selected.markdown",
+            currentRelativePath: "current.md"
+        )
+
+        XCTAssertEqual(
+            selected,
+            .init(isSelected: true, isCurrentDocument: false)
+        )
+        XCTAssertEqual(
+            current,
+            .init(isSelected: false, isCurrentDocument: true)
+        )
+    }
+
     func testSpaceFocusPolicyIsLimitedToTreeAndExcludesButtons() {
         let table = NSTableView()
         let rowContent = NSView()

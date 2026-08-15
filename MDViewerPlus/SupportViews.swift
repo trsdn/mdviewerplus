@@ -9,6 +9,63 @@ enum AppSupport {
     static let copyright = "Copyright © 2026 Torsten Mahr"
 }
 
+struct AuxiliaryWindowPolicy: Equatable {
+    let allowsMinimize: Bool
+    let allowsZoom: Bool
+
+    static let settings = AuxiliaryWindowPolicy(
+        allowsMinimize: false,
+        allowsZoom: false
+    )
+    static let help = AuxiliaryWindowPolicy(
+        allowsMinimize: true,
+        allowsZoom: false
+    )
+}
+
+struct AuxiliaryWindowConfigurator: NSViewRepresentable {
+    let policy: AuxiliaryWindowPolicy
+
+    func makeNSView(context: Context) -> ConfigurationView {
+        let view = ConfigurationView()
+        view.policy = policy
+        return view
+    }
+
+    func updateNSView(_ nsView: ConfigurationView, context: Context) {
+        nsView.policy = policy
+        nsView.applyPolicy()
+    }
+
+    final class ConfigurationView: NSView {
+        var policy = AuxiliaryWindowPolicy.settings {
+            didSet {
+                applyPolicy()
+            }
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyPolicy()
+        }
+
+        func applyPolicy() {
+            guard let window else { return }
+
+            if policy.allowsMinimize {
+                window.styleMask.insert(.miniaturizable)
+            } else {
+                window.styleMask.remove(.miniaturizable)
+            }
+
+            window.standardWindowButton(.miniaturizeButton)?.isEnabled =
+                policy.allowsMinimize
+            window.standardWindowButton(.zoomButton)?.isEnabled =
+                policy.allowsZoom
+        }
+    }
+}
+
 struct SupportCommands: Commands {
     @Environment(\.openWindow) private var openWindow
 
@@ -75,12 +132,9 @@ struct HelpView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("MDViewer+ Help")
-                        .font(.largeTitle.bold())
-                    Text("Native, offline Markdown editing and preview.")
-                        .foregroundStyle(.secondary)
-                }
+                Text("Native, offline Markdown editing and preview.")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
 
                 helpSection("Get started") {
                     Text(
@@ -89,8 +143,7 @@ struct HelpView: View {
                     )
                 }
 
-                helpSection("Find and navigate") {
-                    shortcut("Show or hide Folder Navigator", "⇧⌘B")
+                helpSection("Folder Navigator") {
                     Text(
                         "The optional Folder Navigator is hidden by default and " +
                         "stays available in View, Split, and Edit modes. Use " +
@@ -98,13 +151,6 @@ struct HelpView: View {
                         "a parent folder, and Navigate > Reveal Current Document " +
                         "in Folder Navigator to locate the open file."
                     )
-                    shortcut("Find", "⌘F")
-                    shortcut("Quick Open in the current folder", "⌘K")
-                    shortcut("Document Outline", "⇧⌘O")
-                    shortcut("Previous or next Markdown file", "⌥⌘←  ⌥⌘→")
-                }
-
-                helpSection("Folder Navigator safety") {
                     Text(
                         "The navigator is read-only and local-only. It loads one " +
                         "directory at a time, excludes hidden items, packages, " +
@@ -116,11 +162,19 @@ struct HelpView: View {
                     )
                 }
 
-                helpSection("Edit and preview") {
-                    shortcut("Toggle view mode", "⌘E")
-                    shortcut("Reload preview", "⌘R")
-                    shortcut("Print", "⌘P")
-                    shortcut("Zoom in, out, or reset", "⌘+  ⌘−  ⌘0")
+                helpSection("Keyboard shortcuts") {
+                    VStack(spacing: 0) {
+                        shortcut("Show or hide Folder Navigator", "⇧⌘B")
+                        shortcut("Find", "⌘F")
+                        shortcut("Quick Open in the current folder", "⌘K")
+                        shortcut("Document Outline", "⇧⌘O")
+                        shortcut("Previous Markdown file", "⌥⌘←")
+                        shortcut("Next Markdown file", "⌥⌘→")
+                        shortcut("Toggle view mode", "⌘E")
+                        shortcut("Reload preview", "⌘R")
+                        shortcut("Print", "⌘P")
+                        shortcut("Zoom in, out, or reset", "⌘+  ⌘−  ⌘0")
+                    }
                 }
 
                 helpSection("Lite and Full") {
@@ -137,10 +191,15 @@ struct HelpView: View {
                     Link("Report an Issue", destination: AppSupport.issueURL)
                 }
             }
+            .frame(maxWidth: 520, alignment: .leading)
             .padding(28)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(width: 600, height: 580)
+        .background(
+            AuxiliaryWindowConfigurator(policy: .help)
+                .frame(width: 0, height: 0)
+        )
     }
 
     private func helpSection<Content: View>(
@@ -162,5 +221,6 @@ struct HelpView: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.secondary)
         }
+        .padding(.vertical, 4)
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum ViewMode: Equatable {
@@ -56,13 +57,14 @@ private enum DocumentAlert: Identifiable {
 }
 
 struct ContentView: View {
-    @Binding var document: MarkdownDocument
-    let fileURL: URL?
+    @ObservedObject var tab: DocumentTab
+    let isActive: Bool
+    @ObservedObject var folderNavigator: FolderNavigatorState
     let appearanceMode: AppearanceMode
     let lightThemeID: String
     let darkThemeID: String
+    @EnvironmentObject private var workspace: Workspace
     @Environment(\.colorScheme) private var systemColorScheme
-    @Environment(\.openDocument) private var openDocument
     @AppStorage("zoomLevel") private var zoomLevel: Double = 1.0
     @AppStorage("editorFontSize") private var editorFontSize: Double = 14.0
     @State private var viewMode: ViewMode = .view
@@ -75,7 +77,8 @@ struct ContentView: View {
     @State private var editorOutlineRequest: EditorOutlineRequest?
     @State private var previewOutlineRequest: PreviewOutlineRequest?
     @State private var previewFindQuery = ""
-    @State private var previewFindStatus = ""
+    @State private var previewFindResult: PreviewFindResult?
+    @State private var isPreviewFindSearching = false
     @State private var isPreviewFindPresented = false
     @State private var isQuickOpenPresented = false
     @State private var quickOpenItems: [QuickOpenItem] = []
@@ -92,10 +95,16 @@ struct ContentView: View {
     @State private var pendingRelativeLink: URL?
     @State private var siblingFiles = MarkdownSiblingFiles.unavailable
     @State private var isNavigating = false
+    @State private var presentingSize = CGSize(width: 800, height: 600)
     @StateObject private var windowState = DocumentWindowState()
     @StateObject private var printController = MarkdownPrintController()
     @StateObject private var folderWatcher = MarkdownFolderWatcher()
-    @StateObject private var folderNavigator = FolderNavigatorState()
+
+    private var document: MarkdownDocument { tab.document }
+
+    private var documentText: Binding<String> { $tab.document.text }
+
+    private var fileURL: URL? { tab.fileURL }
 
     private var palette: ThemePalette {
         ThemeRegistry.resolve(
@@ -107,14 +116,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView(columnVisibility: navigatorColumnVisibility) {
-            FolderNavigatorSidebar(
-                state: folderNavigator,
-                chooseRoot: chooseFolderNavigatorRoot,
-                activate: openFromFolderNavigator
-            )
-        } detail: {
-            Group {
+        Group {
                 switch viewMode {
                 case .view:
                 MarkdownWebView(
@@ -137,7 +139,7 @@ struct ContentView: View {
                 case .split:
                 HSplitView {
                     MarkdownEditorView(
-                        text: $document.text,
+                        text: documentText,
                         palette: palette,
                         fontSize: CGFloat(editorFontSize),
                         scrollFraction: $scrollFraction,
@@ -170,7 +172,7 @@ struct ContentView: View {
                 .background(palette.colors.splitter.swiftUIColor)
                 case .edit:
                 MarkdownEditorView(
-                    text: $document.text,
+                    text: documentText,
                     palette: palette,
                     fontSize: CGFloat(editorFontSize),
                     scrollFraction: $scrollFraction,
@@ -182,7 +184,6 @@ struct ContentView: View {
                 )
             }
         }
-        }
         .background(palette.colors.background.swiftUIColor)
         .tint(palette.colors.splitterHover.swiftUIColor)
         .preferredColorScheme(appearanceMode.preferredColorScheme)
@@ -190,59 +191,71 @@ struct ContentView: View {
         .overlay(alignment: .topTrailing) {
             resourceAccessNotice
         }
-        .overlay(alignment: .topTrailing) {
-            if isPreviewFindPresented {
-                PreviewFindBar(
-                    query: $previewFindQuery,
-                    status: previewFindStatus,
-                    onSearch: performPreviewFind,
-                    onDismiss: dismissPreviewFind
-                )
-                .padding(10)
-            }
-        }
-        .focusedSceneValue(\.documentCommandActions, commandActions)
-        .task(id: fileURL) {
-#if DEBUG
-            if fileURL == nil,
-               let testDocument = UITestHooks.consumeInitialDocumentURL() {
-                do {
-                    try await openDocument(at: testDocument)
-                    windowState.window?.close()
-                } catch {
-                    documentAlert = .error(
-                        title: "Couldn’t Open UI Test Document",
-                        message: error.localizedDescription
+        .overlay {
+            GeometryReader { geometry in
+                if isPreviewFindPresented {
+                    PreviewFindBar(
+                        query: $previewFindQuery,
+                        result: previewFindResult,
+                        isSearching: isPreviewFindSearching,
+                        onSearch: performPreviewFind,
+                        onDismiss: dismissPreviewFind
+                    )
+                    .padding(.top, 10)
+                    .padding(
+                        .trailing,
+                        NavigationPanelSizing.previewContentInset(
+                            for: geometry.size.width
+                        )
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .topTrailing
                     )
                 }
-                return
             }
-#endif
+        }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: PresentingSizePreferenceKey.self,
+                    value: geometry.size
+                )
+            }
+        }
+        .onPreferenceChange(PresentingSizePreferenceKey.self) {
+            presentingSize = $0
+        }
+        .onChange(of: previewFindQuery) { newQuery in
+            if previewFindRequest?.query != newQuery {
+                previewFindResult = nil
+                isPreviewFindSearching = false
+            }
+        }
+        .focusedSceneValue(
+            \.documentCommandActions,
+            isActive ? commandActions : nil
+        )
+        .task(id: fileURL) {
             resetFolderAccess()
-            await folderNavigator.initialize(for: fileURL)
         }
         .onDisappear {
             folderWatcher.stop()
-            folderNavigator.reset()
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    folderNavigator.toggleVisibility(documentURL: fileURL)
-                } label: {
-                    Label("Folder Navigator", systemImage: "sidebar.left")
-                }
-                .help("Folder Navigator (⇧⌘B)")
-                .disabled(fileURL == nil)
-            }
         }
         .sheet(isPresented: $isQuickOpenPresented) {
-            QuickOpenPalette(items: quickOpenItems) { url in
+            QuickOpenPalette(
+                items: quickOpenItems,
+                presentingHeight: presentingSize.height
+            ) { url in
                 openNativeDocument(at: url, fragment: nil)
             }
         }
         .sheet(isPresented: $isOutlinePresented) {
-            OutlinePalette(entries: outlineEntries) { entry in
+            OutlinePalette(
+                entries: outlineEntries,
+                presentingHeight: presentingSize.height
+            ) { entry in
                 selectOutlineEntry(entry)
             }
         }
@@ -253,7 +266,7 @@ struct ContentView: View {
                     title: Text("Reload Document?"),
                     message: Text("Reloading will discard unsaved changes in this document."),
                     primaryButton: .destructive(Text("Reload")) {
-                        document.text = diskText
+                        tab.load(text: diskText, url: fileURL)
                     },
                     secondaryButton: .cancel()
                 )
@@ -265,18 +278,6 @@ struct ContentView: View {
                 )
             }
         }
-    }
-
-    private var navigatorColumnVisibility: Binding<NavigationSplitViewVisibility> {
-        Binding(
-            get: { folderNavigator.isVisible ? .all : .detailOnly },
-            set: { visibility in
-                let visible = visibility != .detailOnly
-                if folderNavigator.isVisible != visible {
-                    folderNavigator.toggleVisibility(documentURL: fileURL)
-                }
-            }
-        )
     }
 
     private var commandActions: DocumentCommandActions {
@@ -293,10 +294,12 @@ struct ContentView: View {
                 && !isRequestingResourceAccess,
             canShowOutline: !outlineEntries.isEmpty,
             canDismissFind: isPreviewFindPresented,
-            canToggleFolderNavigator: fileURL != nil,
-            canChooseFolderNavigatorRoot: fileURL != nil && !isNavigating,
+            canToggleFolderNavigator: true,
+            canChooseFolderNavigatorRoot: !isNavigating,
             canRevealInFolderNavigator:
                 folderNavigator.currentRelativePath != nil,
+            canSave: tab.isDirty || fileURL == nil,
+            canCloseTab: true,
             navigationPreparationTitle:
                 SiblingNavigationFreshnessPolicy.preparationCommandTitle(
                     hasFolderAccess: folderAccess != nil
@@ -316,8 +319,13 @@ struct ContentView: View {
             toggleFolderNavigator: {
                 folderNavigator.toggleVisibility(documentURL: fileURL)
             },
-            chooseFolderNavigatorRoot: chooseFolderNavigatorRoot,
+            chooseFolderNavigatorRoot: workspace.chooseFolderNavigatorRoot,
             revealInFolderNavigator: folderNavigator.revealCurrentDocument,
+            newTab: { workspace.newTab() },
+            closeTab: workspace.closeSelectedTab,
+            openFile: workspace.presentOpenPanel,
+            save: { workspace.save(tab) },
+            saveAs: { workspace.saveAs(tab) },
             format: requestFormat
         )
     }
@@ -416,7 +424,8 @@ struct ContentView: View {
             switch command {
             case .show:
                 isPreviewFindPresented = true
-                previewFindStatus = ""
+                previewFindResult = nil
+                isPreviewFindSearching = false
             case .next:
                 if previewFindQuery.isEmpty {
                     isPreviewFindPresented = true
@@ -437,23 +446,28 @@ struct ContentView: View {
 
     private func performPreviewFind(backwards: Bool) {
         guard !previewFindQuery.isEmpty else {
-            previewFindStatus = ""
+            previewFindResult = nil
+            isPreviewFindSearching = false
             return
         }
-        previewFindStatus = "Searching…"
+        previewFindResult = nil
+        isPreviewFindSearching = true
         previewFindRequest = PreviewFindRequest(
             query: previewFindQuery,
             backwards: backwards
         )
     }
 
-    private func updatePreviewFindStatus(_ found: Bool) {
-        previewFindStatus = found ? "Match found" : "No matches"
+    private func updatePreviewFindStatus(_ result: PreviewFindResult) {
+        guard previewFindRequest?.query == previewFindQuery else { return }
+        previewFindResult = result
+        isPreviewFindSearching = false
     }
 
     private func dismissPreviewFind() {
         isPreviewFindPresented = false
-        previewFindStatus = ""
+        previewFindResult = nil
+        isPreviewFindSearching = false
         previewFindRequest = PreviewFindRequest(query: "", clear: true)
     }
 
@@ -503,9 +517,16 @@ struct ContentView: View {
             return
         }
         do {
-            quickOpenItems = try MarkdownFileCatalog.files(
-                in: folderAccess.rootURL
-            ).map(QuickOpenItem.init(url:))
+            let rootURL = folderAccess.rootURL
+            quickOpenItems = try MarkdownFileCatalog.files(in: rootURL).map {
+                QuickOpenItem(
+                    url: $0,
+                    displayRelativePath: displayRelativePath(
+                        for: $0,
+                        relativeTo: rootURL
+                    )
+                )
+            }
         } catch {
             quickOpenItems = []
             if reportErrors {
@@ -515,6 +536,21 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    private func displayRelativePath(
+        for fileURL: URL,
+        relativeTo rootURL: URL
+    ) -> String {
+        let fileComponents = fileURL.standardizedFileURL.pathComponents
+        let rootComponents = rootURL.standardizedFileURL.pathComponents
+        guard fileComponents.starts(with: rootComponents) else {
+            return fileURL.lastPathComponent
+        }
+        let relativeComponents = fileComponents.dropFirst(rootComponents.count)
+        return relativeComponents.isEmpty
+            ? fileURL.lastPathComponent
+            : relativeComponents.joined(separator: "/")
     }
 
     private func reload() {
@@ -528,12 +564,12 @@ struct ContentView: View {
             switch ReloadPolicy.decide(
                 currentText: document.text,
                 diskText: diskText,
-                hasUnsavedChanges: windowState.window?.isDocumentEdited == true
+                hasUnsavedChanges: tab.isDirty
             ) {
             case .unchanged:
                 break
             case .apply(let text):
-                document.text = text
+                tab.load(text: text, url: url)
             case .confirm(let text):
                 documentAlert = .confirmReload(text)
             }
@@ -600,17 +636,13 @@ struct ContentView: View {
                 return
             }
 
-            let sourceWindow = windowState.window
-
             do {
-                try await SecurityScopedLeaseLifetime.retaining(
-                    navigationAccess
-                ) {
-                    try await openDocument(at: destination)
+                try withExtendedLifetime(navigationAccess) {
+                    try workspace.open(
+                        destination,
+                        disposition: .replaceCurrentTab
+                    )
                 }
-                DocumentOpeningPolicy.handleSuccessfulOpen(
-                    sourceWindow: sourceWindow
-                )
             } catch {
                 siblingFiles = SiblingNavigationTargetPolicy.afterOpenFailure(
                     currentTargets: siblingFiles
@@ -826,103 +858,32 @@ struct ContentView: View {
         at destination: URL,
         fragment: String?,
         navigatorAccess: FolderAccessLease? = nil,
-        navigatorContextToken: UUID? = nil
+        disposition: DocumentOpenDisposition = .replaceCurrentTab
     ) {
         guard !isNavigating else { return }
         isNavigating = true
+        defer { isNavigating = false }
         let access = navigatorAccess ?? folderAccess
-        let sourceWindow = windowState.window
 
-        Task { @MainActor in
-            defer {
-                _ = access
-                isNavigating = false
-            }
-            do {
-                if let fragment {
-                    PendingDocumentFragmentStore.shared.store(
-                        fragment: fragment,
-                        for: destination
-                    )
-                }
-                if let access {
-                    try await SecurityScopedLeaseLifetime.retaining(access) {
-                        try await openDocument(at: destination)
-                    }
-                } else {
-                    try await openDocument(at: destination)
-                }
-                DocumentOpeningPolicy.handleSuccessfulOpen(
-                    sourceWindow: sourceWindow
-                )
-            } catch {
-                if navigatorAccess != nil {
-                    FolderNavigatorContextStore.shared.clear(
-                        for: destination,
-                        matching: navigatorContextToken
-                    )
-                }
-                if fragment != nil {
-                    _ = PendingDocumentFragmentStore.shared.consume(
-                        for: destination
-                    )
-                }
-                documentAlert = .error(
-                    title: "Couldn’t Open Markdown File",
-                    message: error.localizedDescription
-                )
-            }
-        }
-    }
-
-    private func chooseFolderNavigatorRoot() {
-        guard let fileURL, !isNavigating else { return }
-        Task { @MainActor in
-            do {
-                guard let access = try await FolderAccessStore.shared.requestAccess(
-                    for: fileURL,
-                    purpose: .folderNavigator,
-                    attachedTo: windowState.window
-                ) else { return }
-                folderNavigator.isVisible = true
-                await folderNavigator.setRoot(access, documentURL: fileURL)
-            } catch {
-                showNavigationError(
-                    title: "Couldn’t Open Folder",
-                    error: error
-                )
-            }
-        }
-    }
-
-    private func openFromFolderNavigator(_ node: FolderNavigatorNode) {
         do {
-            guard !isNavigating else { return }
-            let destination = try folderNavigator.resolvedFile(for: node)
-            if let fileURL,
-               FolderNavigatorPath.canonical(destination)
-                == FolderNavigatorPath.canonical(fileURL) {
-                folderNavigator.revealCurrentDocument()
-                return
+            if let fragment {
+                PendingDocumentFragmentStore.shared.store(
+                    fragment: fragment,
+                    for: destination
+                )
             }
-            guard let context = folderNavigator.pendingContext(),
-                  let navigatorAccess = folderNavigator.rootLease else {
-                throw FolderNavigatorError.accessDenied
+            try withExtendedLifetime(access) {
+                try workspace.open(destination, disposition: disposition)
             }
-            let token = FolderNavigatorContextStore.shared.store(
-                context,
-                for: destination
-            )
-            openNativeDocument(
-                at: destination,
-                fragment: nil,
-                navigatorAccess: navigatorAccess,
-                navigatorContextToken: token
-            )
         } catch {
-            showNavigationError(
+            if fragment != nil {
+                _ = PendingDocumentFragmentStore.shared.consume(
+                    for: destination
+                )
+            }
+            documentAlert = .error(
                 title: "Couldn’t Open Markdown File",
-                error: error
+                message: error.localizedDescription
             )
         }
     }
@@ -939,6 +900,14 @@ private final class DocumentWindowState: ObservableObject {
     weak var window: NSWindow?
 }
 
+private struct PresentingSizePreferenceKey: PreferenceKey {
+    static var defaultValue = CGSize(width: 800, height: 600)
+
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
+    }
+}
+
 private struct DocumentWindowAccessor: NSViewRepresentable {
     let state: DocumentWindowState
 
@@ -951,6 +920,7 @@ private struct DocumentWindowAccessor: NSViewRepresentable {
     func updateNSView(_ nsView: WindowReaderView, context: Context) {
         nsView.state = state
         state.window = nsView.window
+        nsView.installToolbarPolicy()
     }
 
     final class WindowReaderView: NSView {
@@ -959,6 +929,9 @@ private struct DocumentWindowAccessor: NSViewRepresentable {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             state?.window = window
+            installToolbarPolicy()
         }
+
+        func installToolbarPolicy() {}
     }
 }

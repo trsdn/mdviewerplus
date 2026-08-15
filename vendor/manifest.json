@@ -150,14 +150,14 @@
     {
       "path": "Common/render.js",
       "edition": "common",
-      "bytes": 31010,
-      "sha256": "050624e6da2a176fec34a81eb44ed30573693bd872af2f3e2a3583159d500896"
+      "bytes": 35351,
+      "sha256": "0c34974a674cf4d67a0e06215f040ed38079010a618c721470c1e08c413c2bd6"
     },
     {
       "path": "Common/styles.css",
       "edition": "common",
-      "bytes": 8447,
-      "sha256": "23601b220adb942b0eb6f3929c76ec2e8a1198831b23037ca5f985c89fe7df14"
+      "bytes": 10837,
+      "sha256": "7eb63af2836bf42e7c410649ebbc7ad2168348442a387256eb97964d1af9d55c"
     },
     {
       "path": "Common/template.html",
@@ -210,8 +210,8 @@
     {
       "path": "Full/full.js",
       "edition": "full",
-      "bytes": 22104,
-      "sha256": "321fa7cfaab73a0bdf54b501145f5ba351cc4ebbb113c80970a0d5b4960da48e"
+      "bytes": 24734,
+      "sha256": "ac29c8d81d5819895700c49f775c822034e6ab0d5cdacd4311ee48788366ba89"
     },
     {
       "path": "Full/modules/highlight.esm.min.mjs",
@@ -857,8 +857,8 @@
     }
   ],
   "totals": {
-    "common": 127396,
+    "common": 134127,
     "lite": 33380,
-    "full": 3944498
+    "full": 3947128
   }
 }

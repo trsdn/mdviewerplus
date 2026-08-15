@@ -195,6 +195,11 @@ enum SourceDocumentDisposition: Equatable {
     case close
 }
 
+enum DocumentOpenDisposition {
+    case replaceCurrentTab
+    case newTab
+}
+
 struct DocumentOpeningPolicy {
     static func sourceDisposition(
         openSucceeded: Bool,
@@ -214,6 +219,7 @@ struct DocumentOpeningPolicy {
         }
         sourceWindow?.closeAfterSuccessfulNavigation()
     }
+
 }
 
 protocol NavigationSourceWindow: AnyObject {

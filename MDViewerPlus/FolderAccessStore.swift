@@ -24,16 +24,19 @@ enum FolderAccessPurpose: Equatable {
     case navigationTools
     case folderNavigator
 
-    func panelMessage(for documentURL: URL) -> String {
+    func panelMessage(for documentURL: URL?) -> String {
+        let name = documentURL?.lastPathComponent ?? "this document"
         switch self {
         case .relativeResources:
-            return "Choose the folder containing \(documentURL.lastPathComponent) to load relative images and open relative links."
+            return "Choose the folder containing \(name) to load relative images and open relative links."
         case .siblingNavigation:
-            return "Choose the folder containing \(documentURL.lastPathComponent) to navigate between Markdown files."
+            return "Choose the folder containing \(name) to navigate between Markdown files."
         case .navigationTools:
-            return "Choose the folder containing \(documentURL.lastPathComponent) to use Quick Open, the folder watcher, and internal Markdown links."
+            return "Choose the folder containing \(name) to use Quick Open, the folder watcher, and internal Markdown links."
         case .folderNavigator:
-            return "Choose this document’s folder or a parent folder to browse Markdown files."
+            return documentURL == nil
+                ? "Choose a folder to browse Markdown files."
+                : "Choose this document’s folder or a parent folder to browse Markdown files."
         }
     }
 }
@@ -228,16 +231,19 @@ final class FolderAccessStore {
     }
 
     func requestAccess(
-        for documentURL: URL,
+        for documentURL: URL?,
         purpose: FolderAccessPurpose,
         attachedTo window: NSWindow?
     ) async throws -> FolderAccessLease? {
-        let expectedRoot = canonicalFolder(for: documentURL)
+        let expectedRoot = documentURL.map(canonicalFolder(for:))
 #if DEBUG
-        if purpose == .folderNavigator,
-           let testingRoot = UITestHooks.authorizedFolderURL {
-            guard FolderNavigatorPath.isContained(expectedRoot, by: testingRoot)
-            else {
+        if let testingRoot = UITestHooks.authorizedFolderURL {
+            let isAllowed = expectedRoot.map { root in
+                purpose == .folderNavigator
+                    ? FolderNavigatorPath.isContained(root, by: testingRoot)
+                    : testingRoot == root
+            } ?? (purpose == .folderNavigator)
+            guard isAllowed else {
                 throw FolderAccessError.wrongFolder
             }
             return FolderAccessLease(testingRootURL: testingRoot)
@@ -263,9 +269,11 @@ final class FolderAccessStore {
             throw FolderAccessError.symbolicLink
         }
         let canonicalSelection = selectedURL.standardizedFileURL.resolvingSymlinksInPath()
-        let isAllowed = purpose == .folderNavigator
-            ? FolderNavigatorPath.isContained(expectedRoot, by: canonicalSelection)
-            : canonicalSelection == expectedRoot
+        let isAllowed = expectedRoot.map { root in
+            purpose == .folderNavigator
+                ? FolderNavigatorPath.isContained(root, by: canonicalSelection)
+                : canonicalSelection == root
+        } ?? (purpose == .folderNavigator)
         guard isAllowed, selectedValues.isDirectory == true else {
             throw FolderAccessError.wrongFolder
         }

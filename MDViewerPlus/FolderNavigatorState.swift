@@ -129,6 +129,24 @@ final class FolderNavigatorState: ObservableObject {
         await restoreBestRoot(for: documentURL)
     }
 
+    /// True when `url` lives under the currently loaded root, so switching to
+    /// it only requires updating the highlight instead of rebuilding the tree.
+    func canRepresent(_ url: URL) -> Bool {
+        guard let rootURL else { return false }
+        return FolderNavigatorPath.relativePath(of: url, under: rootURL) != nil
+    }
+
+    func updateCurrentDocument(_ documentURL: URL?) {
+        guard let rootURL, let documentURL else {
+            currentRelativePath = nil
+            return
+        }
+        currentRelativePath = FolderNavigatorPath.relativePath(
+            of: documentURL,
+            under: rootURL
+        )
+    }
+
     func restoreBestRoot(for documentURL: URL) async {
         do {
             guard let lease = try FolderAccessStore.shared

@@ -4,7 +4,7 @@
  * This file is inlined into the render page under the CSP nonce. It owns the
  * generation-aware pipeline used by both editions:
  *
- *   1. optional frontmatter separation (Full only, via the Full hook)
+ *   1. safe edition-independent frontmatter separation
  *   2. Markdown parsing with marked + marked-footnote
  *   3. HTML sanitization with the single narrow Markdown DOMPurify policy
  *   4. constrained DOM insertion
@@ -42,7 +42,7 @@
     "ul", "var",
   ];
   const allowedAttributes = [
-    "alt", "checked", "class", "colspan", "datetime", "disabled", "href",
+    "align", "alt", "checked", "class", "colspan", "datetime", "disabled", "href",
     "id", "open", "reversed", "rowspan", "src", "start", "title", "type",
     "aria-label", "aria-labelledby", "aria-describedby",
   ];
@@ -176,6 +176,12 @@
         data.keepAttr = isSafeLink(data.attrValue);
       } else if (tagName === "img" && attributeName === "src") {
         data.keepAttr = isRelativeURL(data.attrValue);
+      } else if (attributeName === "align") {
+        const alignment = String(data.attrValue).trim().toLowerCase();
+        data.keepAttr =
+          (tagName === "th" || tagName === "td") &&
+          (alignment === "left" || alignment === "center" || alignment === "right");
+        if (data.keepAttr) data.attrValue = alignment;
       } else if (attributeName === "id") {
         data.keepAttr = generatedIdPattern.test(String(data.attrValue));
       } else if (attributeName === "class") {
@@ -230,6 +236,58 @@
     if (typeof window.markedFootnote === "function") {
       marked.use(window.markedFootnote());
     }
+  }
+
+  function lineBounds(text, start) {
+    let contentsEnd = start;
+    while (
+      contentsEnd < text.length &&
+      text[contentsEnd] !== "\r" &&
+      text[contentsEnd] !== "\n"
+    ) {
+      contentsEnd += 1;
+    }
+
+    let end = contentsEnd;
+    if (text[end] === "\r") {
+      end += 1;
+      if (text[end] === "\n") end += 1;
+    } else if (text[end] === "\n") {
+      end += 1;
+    }
+    return { contentsEnd, end };
+  }
+
+  function splitFrontmatter(markdown) {
+    const text = String(markdown ?? "");
+    const first = lineBounds(text, 0);
+    if (text.slice(0, first.contentsEnd) !== "---" || first.end === first.contentsEnd) {
+      return null;
+    }
+
+    const sourceStart = first.end;
+    let lineStart = first.end;
+    while (lineStart < text.length) {
+      const line = lineBounds(text, lineStart);
+      if (text.slice(lineStart, line.contentsEnd) === "---") {
+        return {
+          source: text.slice(sourceStart, lineStart),
+          body: text.slice(line.end),
+          bodyUTF16Offset: line.end,
+        };
+      }
+      lineStart = line.end;
+    }
+    return null;
+  }
+
+  function buildRawFrontmatter(source) {
+    const pre = document.createElement("pre");
+    pre.className = "md-frontmatter-raw";
+    const code = document.createElement("code");
+    code.textContent = source;
+    pre.appendChild(code);
+    return pre;
   }
 
   /* -------------------------------------------------------- postprocessors */
@@ -440,7 +498,7 @@
 
       const copyButton = document.createElement("button");
       copyButton.type = "button";
-      copyButton.className = "md-code-button";
+      copyButton.className = "md-code-button md-code-copy";
       copyButton.textContent = "Copy";
       const status = document.createElement("span");
       status.className = "md-code-status";
@@ -807,15 +865,19 @@
 
     configureMarked();
 
-    let body = state.lastMarkdown;
+    const separated = splitFrontmatter(state.lastMarkdown);
+    let body = separated?.body ?? state.lastMarkdown;
     let frontmatter = null;
-    if (CAPABILITIES.frontmatter && window.__mdviewerReadFrontmatter) {
-      const separated = await window.__mdviewerReadFrontmatter(body);
+    if (separated && CAPABILITIES.frontmatter && window.__mdviewerReadFrontmatter) {
+      const parsed = await window.__mdviewerReadFrontmatter(
+        separated.source,
+        separated.body
+      );
       if (generation !== state.generation) return { cancelled: true };
-      if (separated) {
-        body = separated.body;
-        frontmatter = separated.card;
-      }
+      body = parsed.body;
+      frontmatter = parsed.card;
+    } else if (separated) {
+      frontmatter = buildRawFrontmatter(separated.source);
     }
 
     const fragment = sanitizeMarkdownHTML(marked.parse(body));
@@ -865,6 +927,85 @@
 
   window.mdviewerRenderGeneration = function () {
     return state.generation;
+  };
+
+  function isSearchableTextNode(node, root) {
+    if (!node || !node.data || node.data.length === 0) return false;
+
+    let element = node.parentElement;
+    while (element) {
+      if (
+        element.matches(
+          "script,style,noscript,summary,button,input,textarea,select,option," +
+            "[role='button'],[role='searchbox'],[contenteditable='true']"
+        ) ||
+        element.hidden ||
+        element.getAttribute("aria-hidden") === "true"
+      ) {
+        return false;
+      }
+
+      const style = getComputedStyle(element);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.visibility === "collapse" ||
+        Number.parseFloat(style.opacity) === 0
+      ) {
+        return false;
+      }
+      if (element === root) break;
+      element = element.parentElement;
+    }
+    if (element !== root) return false;
+
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getClientRects().length > 0;
+  }
+
+  function searchFlowContainer(node, root) {
+    let element = node.parentElement;
+    while (element && element !== root) {
+      const display = getComputedStyle(element).display;
+      if (display !== "inline" && display !== "contents") return element;
+      element = element.parentElement;
+    }
+    return root;
+  }
+
+  window.mdviewerCountMatches = function (query) {
+    const needle = String(query ?? "").toLowerCase();
+    const root = document.getElementById("content");
+    if (!root || needle.length === 0) return 0;
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return isSearchableTextNode(node, root)
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
+      },
+    });
+    const chunks = [];
+    let previousContainer = null;
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const container = searchFlowContainer(node, root);
+      if (previousContainer && previousContainer !== container) chunks.push("\n");
+      chunks.push(node.data);
+      previousContainer = container;
+    }
+
+    const text = chunks.join("").toLowerCase();
+    let count = 0;
+    let offset = 0;
+    while (offset <= text.length - needle.length) {
+      const match = text.indexOf(needle, offset);
+      if (match < 0) break;
+      count += 1;
+      offset = match + needle.length;
+    }
+    return count;
   };
 
   window.mdviewerScrollToSlug = function (slug) {
@@ -925,6 +1066,7 @@
     uniqueSlug,
     isSafeLink,
     isRelativeURL,
+    splitFrontmatter,
     nonce: NONCE,
     limits: LIMITS,
     state,

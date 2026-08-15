@@ -2,9 +2,20 @@ import Foundation
 
 struct QuickOpenItem: Identifiable, Equatable {
     let url: URL
+    let displayRelativePath: String
 
     var name: String { url.lastPathComponent }
     var id: String { url.path }
+
+    var displayParentPath: String {
+        let parent = (displayRelativePath as NSString).deletingLastPathComponent
+        return parent.isEmpty ? "." : parent
+    }
+
+    init(url: URL, displayRelativePath: String? = nil) {
+        self.url = url
+        self.displayRelativePath = displayRelativePath ?? url.lastPathComponent
+    }
 }
 
 enum QuickOpenMatcher {
@@ -60,6 +71,32 @@ enum QuickOpenMatcher {
             )
         }
         return matches.prefix(resultLimit).map(\.item)
+    }
+
+    static func duplicateBasenames(
+        in items: [QuickOpenItem]
+    ) -> Set<String> {
+        let counts = Dictionary(
+            grouping: items,
+            by: { normalizedBasename($0.name) }
+        ).mapValues(\.count)
+        return Set(counts.compactMap { key, count in
+            count > 1 ? key : nil
+        })
+    }
+
+    static func hasDuplicateBasename(
+        _ item: QuickOpenItem,
+        duplicateBasenames: Set<String>
+    ) -> Bool {
+        duplicateBasenames.contains(normalizedBasename(item.name))
+    }
+
+    private static func normalizedBasename(_ name: String) -> String {
+        name.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
     }
 
     private static func score(

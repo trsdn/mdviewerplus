@@ -9,37 +9,68 @@ struct ThemeSettingsView: View {
         ThemeRegistry.defaultDarkThemeID.rawValue
 
     var body: some View {
-        Form {
-            Picker("Appearance", selection: appearanceMode) {
-                ForEach(AppearanceMode.allCases) { mode in
-                    Text(mode.label).tag(mode.rawValue)
+        VStack(alignment: .leading, spacing: 18) {
+            Grid(
+                alignment: .leading,
+                horizontalSpacing: 16,
+                verticalSpacing: 14
+            ) {
+                GridRow {
+                    Text("Appearance")
+                        .gridColumnAlignment(.trailing)
+
+                    Picker("Appearance", selection: appearanceMode) {
+                        ForEach(AppearanceMode.allCases) { mode in
+                            Text(mode.label).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .accessibilityIdentifier("appearanceModeSelector")
+                }
+
+                GridRow {
+                    Text("Light theme")
+
+                    themePicker(
+                        title: "Light theme",
+                        selection: lightThemeSelection,
+                        palettes: ThemeRegistry.lightPalettes,
+                        accessibilityIdentifier: "lightThemePicker"
+                    )
+                    .labelsHidden()
+                }
+
+                GridRow {
+                    Text("Dark theme")
+
+                    themePicker(
+                        title: "Dark theme",
+                        selection: darkThemeSelection,
+                        palettes: ThemeRegistry.darkPalettes,
+                        accessibilityIdentifier: "darkThemePicker"
+                    )
+                    .labelsHidden()
                 }
             }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("appearanceModeSelector")
 
-            themePicker(
-                title: "Light theme",
-                selection: lightThemeSelection,
-                palettes: ThemeRegistry.lightPalettes,
-                accessibilityIdentifier: "lightThemePicker"
+            Text(
+                "System follows the current macOS appearance and uses the " +
+                "selected light or dark palette."
             )
-
-            themePicker(
-                title: "Dark theme",
-                selection: darkThemeSelection,
-                palettes: ThemeRegistry.darkPalettes,
-                accessibilityIdentifier: "darkThemePicker"
-            )
-
-            Text("System follows the current macOS appearance and uses the selected light or dark palette.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Section("About") {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("About")
+                    .font(.headline)
+
                 Text(AppVersion.summary)
                     .textSelection(.enabled)
                     .accessibilityIdentifier("editionVersion")
+
                 Text(
                     AppVersion.edition == .full
                         ? "Full includes lazy offline Mermaid, broad syntax highlighting, and YAML metadata cards."
@@ -49,9 +80,14 @@ struct ThemeSettingsView: View {
                 .foregroundStyle(.secondary)
             }
         }
-        .formStyle(.grouped)
-        .padding()
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
         .frame(width: 460)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            AuxiliaryWindowConfigurator(policy: .settings)
+                .frame(width: 0, height: 0)
+        )
     }
 
     private var appearanceMode: Binding<String> {

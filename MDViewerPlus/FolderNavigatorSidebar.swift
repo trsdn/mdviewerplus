@@ -5,6 +5,35 @@ struct FolderNavigatorSidebar: View {
     @ObservedObject var state: FolderNavigatorState
     let chooseRoot: () -> Void
     let activate: (FolderNavigatorNode) -> Void
+    let activateInNewTab: (FolderNavigatorNode) -> Void
+
+    enum NavigatorRowMetrics {
+        static let indentationStep: CGFloat = 14
+        static let disclosureWidth: CGFloat = 12
+        static let iconWidth: CGFloat = 16
+        static let currentIndicatorWidth: CGFloat = 10
+        static let columnSpacing: CGFloat = 4
+
+        static func indentationWidth(for level: Int) -> CGFloat {
+            CGFloat(max(level, 0)) * indentationStep
+        }
+    }
+
+    struct NavigatorRowState: Equatable {
+        let isSelected: Bool
+        let isCurrentDocument: Bool
+    }
+
+    static func rowState(
+        relativePath: String,
+        selectedRelativePath: String?,
+        currentRelativePath: String?
+    ) -> NavigatorRowState {
+        NavigatorRowState(
+            isSelected: selectedRelativePath == relativePath,
+            isCurrentDocument: currentRelativePath == relativePath
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,11 +42,12 @@ struct FolderNavigatorSidebar: View {
                     .font(.headline)
                     .lineLimit(1)
                 Spacer()
-                Button("Open Folder", systemImage: "folder.badge.plus") {
+                Button("Open Folder", systemImage: "folder") {
                     chooseRoot()
                 }
                 .labelStyle(.iconOnly)
                 .help("Open Folder…")
+                .accessibilityLabel("Open Folder…")
             }
             .padding(10)
 
@@ -216,52 +246,66 @@ struct FolderNavigatorSidebar: View {
     }
 
     private func navigatorRow(_ row: FolderNavigatorState.VisibleRow) -> some View {
-        HStack(spacing: 4) {
-            Color.clear.frame(width: CGFloat(row.level) * 14, height: 1)
-            if row.node.kind == .directory {
-                Button {
-                    state.toggleExpansion(row.node)
-                } label: {
-                    Image(
-                        systemName: state.expandedRelativePaths.contains(
-                            row.node.relativePath
-                        ) ? "chevron.down" : "chevron.right"
+        let rowState = Self.rowState(
+            relativePath: row.node.relativePath,
+            selectedRelativePath: state.selectedRelativePath,
+            currentRelativePath: state.currentRelativePath
+        )
+
+        return HStack(spacing: NavigatorRowMetrics.columnSpacing) {
+            Color.clear.frame(
+                width: NavigatorRowMetrics.indentationWidth(for: row.level),
+                height: 1
+            )
+            Group {
+                if row.node.kind == .directory {
+                    Button {
+                        state.toggleExpansion(row.node)
+                    } label: {
+                        Image(
+                            systemName: state.expandedRelativePaths.contains(
+                                row.node.relativePath
+                            ) ? "chevron.down" : "chevron.right"
+                        )
+                        .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!row.node.isExpandable)
+                    .accessibilityLabel(
+                        state.expandedRelativePaths.contains(row.node.relativePath)
+                            ? "Collapse \(row.node.name)" : "Expand \(row.node.name)"
                     )
+                } else {
+                    Color.clear.accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .disabled(!row.node.isExpandable)
-                .accessibilityLabel(
-                    state.expandedRelativePaths.contains(row.node.relativePath)
-                        ? "Collapse \(row.node.name)" : "Expand \(row.node.name)"
-                )
-            } else {
-                Color.clear.frame(width: 12)
             }
+            .frame(width: NavigatorRowMetrics.disclosureWidth)
             Image(systemName: row.node.kind == .directory ? "folder" : "doc.text")
+                .frame(width: NavigatorRowMetrics.iconWidth)
                 .accessibilityHidden(true)
             Text(row.node.name)
                 .lineLimit(1)
-                .fontWeight(
-                    state.currentRelativePath == row.node.relativePath
-                        ? .semibold : .regular
-                )
-            Spacer()
-            if state.currentRelativePath == row.node.relativePath {
-                Image(systemName: "circle.fill")
-                    .font(.system(size: 6))
-                    .accessibilityLabel("Current document")
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+            Group {
+                if rowState.isCurrentDocument {
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 6))
+                        .accessibilityLabel("Current document")
+                } else {
+                    Color.clear.accessibilityHidden(true)
+                }
             }
+            .frame(width: NavigatorRowMetrics.currentIndicatorWidth)
         }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            if row.node.kind == .directory {
-                state.toggleExpansion(row.node)
-            } else {
-                activate(row.node)
-            }
-        }
+        .help(row.node.name)
         .onTapGesture {
             state.select(row.node)
+            if row.node.kind == .file {
+                activate(row.node)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(
@@ -272,16 +316,23 @@ struct FolderNavigatorSidebar: View {
             "\(row.node.kind == .directory ? "Folder" : "Markdown file"), \(row.node.name)"
         )
         .accessibilityValue(
-            state.currentRelativePath == row.node.relativePath
-                ? "Current document" : ""
+            [
+                rowState.isSelected ? "Selected" : nil,
+                rowState.isCurrentDocument ? "Current document" : nil,
+            ]
+            .compactMap { $0 }
+            .joined(separator: ", ")
         )
         .accessibilityAddTraits(
-            state.selectedRelativePath == row.node.relativePath
+            rowState.isSelected
                 ? .isSelected : []
         )
         .contextMenu {
             if row.node.kind == .file {
                 Button("Open") { activate(row.node) }
+                Button("Open in New Tab") {
+                    activateInNewTab(row.node)
+                }
             }
         }
     }

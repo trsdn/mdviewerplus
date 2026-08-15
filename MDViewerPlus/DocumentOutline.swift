@@ -78,7 +78,10 @@ enum DocumentOutlineParser {
     static let maximumEntries = 5_000
 
     static func parse(_ markdown: String) -> [OutlineEntry] {
-        let nsText = markdown as NSString
+        let separated = MarkdownFrontmatter.split(markdown)
+        let body = separated?.body ?? markdown
+        let sourceOffset = separated?.bodyUTF16Offset ?? 0
+        let nsText = body as NSString
         var entries: [OutlineEntry] = []
         var used = Set<String>()
         var inFence = false
@@ -105,7 +108,7 @@ enum DocumentOutlineParser {
                         slug: HeadingSlugger.unique(title, used: &used),
                         level: heading.level,
                         title: title,
-                        sourceLocation: lineRange.location
+                        sourceLocation: sourceOffset + lineRange.location
                     )
                 )
                 previousLine = nil
@@ -120,7 +123,7 @@ enum DocumentOutlineParser {
                         slug: HeadingSlugger.unique(title, used: &used),
                         level: level,
                         title: title,
-                        sourceLocation: candidate.location
+                        sourceLocation: sourceOffset + candidate.location
                     )
                 )
                 previousLine = nil

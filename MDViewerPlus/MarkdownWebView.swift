@@ -1,6 +1,72 @@
 import SwiftUI
 import WebKit
 
+struct PreviewFindResult: Equatable {
+    let matchFound: Bool
+    let currentIndex: Int
+    let totalCount: Int
+
+    static let empty = PreviewFindResult(
+        matchFound: false,
+        currentIndex: 0,
+        totalCount: 0
+    )
+}
+
+struct PreviewFindIndexState {
+    private(set) var query = ""
+    private(set) var currentIndex = 0
+
+    mutating func begin(query: String) {
+        if self.query != query {
+            self.query = query
+            currentIndex = 0
+        }
+    }
+
+    mutating func clear() {
+        query = ""
+        currentIndex = 0
+    }
+
+    mutating func result(
+        matchFound: Bool,
+        totalCount: Int,
+        backwards: Bool
+    ) -> PreviewFindResult {
+        guard totalCount > 0 else {
+            currentIndex = 0
+            return matchFound
+                ? PreviewFindResult(
+                    matchFound: true,
+                    currentIndex: 1,
+                    totalCount: 1
+                )
+                : .empty
+        }
+
+        if matchFound {
+            if backwards {
+                currentIndex = currentIndex <= 1
+                    ? totalCount
+                    : currentIndex - 1
+            } else {
+                currentIndex = currentIndex == 0 || currentIndex >= totalCount
+                    ? 1
+                    : currentIndex + 1
+            }
+        } else if currentIndex > totalCount {
+            currentIndex = totalCount
+        }
+
+        return PreviewFindResult(
+            matchFound: matchFound,
+            currentIndex: currentIndex,
+            totalCount: totalCount
+        )
+    }
+}
+
 final class WebThemeApplicationState {
     struct Request: Equatable {
         let generation: Int
@@ -115,7 +181,7 @@ struct MarkdownWebView: NSViewRepresentable {
     var onError: ((String) -> Void)?
     var onRelativeResources: (([String]) -> Void)?
     var onOutline: (([OutlineEntry]) -> Void)?
-    var onFindResult: ((Bool) -> Void)?
+    var onFindResult: ((PreviewFindResult) -> Void)?
     var onOpenRelativeLink: ((URL) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -255,9 +321,12 @@ struct MarkdownWebView: NSViewRepresentable {
 
         private var isPageReady = false
         private var lastRequestedText: String?
+        private var completedRenderText: String?
         private var renderGeneration = 0
         private let themeState: WebThemeApplicationState
         private let renderDebouncer = LatestValueDebouncer<String>(delay: 0.15)
+        private var findIndexState = PreviewFindIndexState()
+        private var activeFindRequestID: UUID?
 
         var desiredPalette: ThemePalette {
             themeState.desiredPalette
@@ -281,6 +350,7 @@ struct MarkdownWebView: NSViewRepresentable {
             do {
                 isPageReady = false
                 lastRequestedText = nil
+                completedRenderText = nil
                 themeState.pageWillLoad()
                 webView.loadHTMLString(
                     try MarkdownRenderPage.makeHTML(),
@@ -293,6 +363,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
         func invalidateRender() {
             lastRequestedText = nil
+            completedRenderText = nil
             requestRender(pendingText, immediate: true)
         }
 
@@ -375,6 +446,7 @@ struct MarkdownWebView: NSViewRepresentable {
                   lastRequestedText != text,
                   let webView else { return }
             lastRequestedText = text
+            completedRenderText = nil
             renderGeneration += 1
             let generation = renderGeneration
 
@@ -388,6 +460,7 @@ struct MarkdownWebView: NSViewRepresentable {
 
                 switch result {
                 case .success(let value):
+                    self.completedRenderText = text
                     self.restoreScroll(in: webView)
                     if let values = value as? [String: Any] {
                         if let resources = values["resources"] as? [String],
@@ -401,8 +474,11 @@ struct MarkdownWebView: NSViewRepresentable {
                             )
                         }
                     }
+                    self.handle(self.parent.findRequest)
+                    self.handle(self.parent.outlineRequest)
                 case .failure(let error):
                     self.lastRequestedText = nil
+                    self.completedRenderText = nil
                     self.report(error)
                 }
             }
@@ -420,26 +496,70 @@ struct MarkdownWebView: NSViewRepresentable {
         func handle(_ request: PreviewFindRequest?) {
             guard let request,
                   request.id != lastHandledFindID,
+                  isPageReady,
+                  completedRenderText == pendingText,
                   let webView else { return }
             lastHandledFindID = request.id
+            activeFindRequestID = request.id
 
-            let configuration = WKFindConfiguration()
-            configuration.backwards = request.backwards
-            configuration.wraps = true
-            configuration.caseSensitive = false
-            webView.find(
-                request.clear ? "" : request.query,
-                configuration: configuration
-            ) { [weak self] result in
-                self?.parent.onFindResult?(
-                    request.clear ? false : result.matchFound
-                )
+            if request.clear {
+                findIndexState.clear()
+                let configuration = WKFindConfiguration()
+                configuration.wraps = true
+                webView.find("", configuration: configuration) { [weak self] _ in
+                    guard let self,
+                          self.activeFindRequestID == request.id else { return }
+                    self.parent.onFindResult?(.empty)
+                }
+                return
+            }
+
+            findIndexState.begin(query: request.query)
+            webView.callAsyncJavaScript(
+                "return window.mdviewerCountMatches(query);",
+                arguments: ["query": request.query],
+                in: nil,
+                in: .page
+            ) { [weak self, weak webView] countResult in
+                guard let self,
+                      let webView,
+                      self.activeFindRequestID == request.id else { return }
+
+                let totalCount: Int
+                switch countResult {
+                case .success(let value):
+                    totalCount = max((value as? NSNumber)?.intValue ?? 0, 0)
+                case .failure(let error):
+                    totalCount = 0
+                    self.report(error)
+                }
+
+                let configuration = WKFindConfiguration()
+                configuration.backwards = request.backwards
+                configuration.wraps = true
+                configuration.caseSensitive = false
+                webView.find(
+                    request.query,
+                    configuration: configuration
+                ) { [weak self] result in
+                    guard let self,
+                          self.activeFindRequestID == request.id else { return }
+                    self.parent.onFindResult?(
+                        self.findIndexState.result(
+                            matchFound: result.matchFound,
+                            totalCount: totalCount,
+                            backwards: request.backwards
+                        )
+                    )
+                }
             }
         }
 
         func handle(_ request: PreviewOutlineRequest?) {
             guard let request,
                   request.id != lastHandledOutlineID,
+                  isPageReady,
+                  completedRenderText == pendingText,
                   let webView else { return }
             lastHandledOutlineID = request.id
             webView.callAsyncJavaScript(
@@ -467,6 +587,7 @@ struct MarkdownWebView: NSViewRepresentable {
             guard webView === self.webView else { return }
             isPageReady = true
             lastRequestedText = nil
+            completedRenderText = nil
             if let request = themeState.pageDidBecomeReady() {
                 performThemeRequest(request)
             }

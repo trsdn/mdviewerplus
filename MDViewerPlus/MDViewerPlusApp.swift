@@ -1,7 +1,31 @@
+import AppKit
 import SwiftUI
+
+final class MDViewerPlusAppDelegate: NSObject, NSApplicationDelegate {
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated {
+            WorkspaceRegistry.shared.open(urls)
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(
+        _ sender: NSApplication
+    ) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        !flag
+    }
+}
 
 @main
 struct MDViewerPlusApp: App {
+    @NSApplicationDelegateAdaptor(MDViewerPlusAppDelegate.self)
+    private var appDelegate
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
     @AppStorage("lightThemeID") private var lightThemeID: String =
         ThemeRegistry.defaultLightThemeID.rawValue
@@ -9,14 +33,13 @@ struct MDViewerPlusApp: App {
         ThemeRegistry.defaultDarkThemeID.rawValue
 
     var body: some Scene {
-        DocumentGroup(newDocument: MarkdownDocument()) { file in
-            ContentView(
-                document: file.$document,
-                fileURL: file.fileURL,
+        WindowGroup {
+            WorkspaceView(
                 appearanceMode: AppearanceMode(rawValue: appearanceMode) ?? .system,
                 lightThemeID: lightThemeID,
                 darkThemeID: darkThemeID
             )
+            .frame(minWidth: 640, minHeight: 420)
         }
         .commands {
             DocumentCommands()
@@ -44,13 +67,14 @@ struct MDViewerPlusApp: App {
         Settings {
             ThemeSettingsView()
         }
+        .windowResizability(.contentSize)
 
         Window("About MDViewer+", id: "about") {
             AboutView()
         }
         .windowResizability(.contentSize)
 
-        Window("MDViewer+ Help", id: "help") {
+        Window("Help", id: "help") {
             HelpView()
         }
         .windowResizability(.contentSize)

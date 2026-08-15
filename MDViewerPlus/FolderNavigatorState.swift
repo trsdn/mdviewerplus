@@ -193,8 +193,13 @@ final class FolderNavigatorState: ObservableObject {
     }
 
     func toggleVisibility(documentURL: URL?) {
-        isVisible.toggle()
-        guard isVisible, rootLease == nil, let documentURL else { return }
+        setVisible(!isVisible, documentURL: documentURL)
+    }
+
+    func setVisible(_ visible: Bool, documentURL: URL?) {
+        guard isVisible != visible else { return }
+        isVisible = visible
+        guard visible, rootLease == nil, let documentURL else { return }
         Task { await restoreBestRoot(for: documentURL) }
     }
 

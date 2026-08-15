@@ -1,14 +1,36 @@
 import AppKit
 import SwiftUI
 
-/// Root view of a window: shared folder navigator, tab bar and tab contents.
+/// Root view of a window: owns the workspace and hands it to the shell.
 struct WorkspaceView: View {
     let appearanceMode: AppearanceMode
     let lightThemeID: String
     let darkThemeID: String
 
-    @Environment(\.colorScheme) private var systemColorScheme
     @StateObject private var workspace = Workspace()
+
+    var body: some View {
+        WorkspaceShell(
+            workspace: workspace,
+            folderNavigator: workspace.folderNavigator,
+            appearanceMode: appearanceMode,
+            lightThemeID: lightThemeID,
+            darkThemeID: darkThemeID
+        )
+    }
+}
+
+/// Observes both the workspace and the folder navigator so that sidebar
+/// visibility changes from the toolbar, the menu or the code all take effect.
+private struct WorkspaceShell: View {
+    @ObservedObject var workspace: Workspace
+    @ObservedObject var folderNavigator: FolderNavigatorState
+    let appearanceMode: AppearanceMode
+    let lightThemeID: String
+    let darkThemeID: String
+
+    @Environment(\.colorScheme) private var systemColorScheme
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
 
     private var palette: ThemePalette {
         ThemeRegistry.resolve(
@@ -19,10 +41,14 @@ struct WorkspaceView: View {
         )
     }
 
+    private var desiredColumnVisibility: NavigationSplitViewVisibility {
+        folderNavigator.isVisible ? .doubleColumn : .detailOnly
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: navigatorColumnVisibility) {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             FolderNavigatorSidebar(
-                state: workspace.folderNavigator,
+                state: folderNavigator,
                 chooseRoot: workspace.chooseFolderNavigatorRoot,
                 activate: { workspace.activate($0, disposition: .replaceCurrentTab) },
                 activateInNewTab: { workspace.activate($0, disposition: .newTab) }
@@ -50,6 +76,18 @@ struct WorkspaceView: View {
                 tab: workspace.selectedTab
             )
         )
+        .onAppear { columnVisibility = desiredColumnVisibility }
+        .onChange(of: columnVisibility) { newValue in
+            folderNavigator.setVisible(
+                newValue != .detailOnly,
+                documentURL: workspace.selectedTab.fileURL
+            )
+        }
+        .onChange(of: folderNavigator.isVisible) { _ in
+            if columnVisibility != desiredColumnVisibility {
+                columnVisibility = desiredColumnVisibility
+            }
+        }
         .alert(item: $workspace.alert) { alert in
             switch alert {
             case .error(let title, let message):
@@ -82,7 +120,7 @@ struct WorkspaceView: View {
                 ContentView(
                     tab: tab,
                     isActive: isActive,
-                    folderNavigator: workspace.folderNavigator,
+                    folderNavigator: folderNavigator,
                     appearanceMode: appearanceMode,
                     lightThemeID: lightThemeID,
                     darkThemeID: darkThemeID
@@ -93,22 +131,6 @@ struct WorkspaceView: View {
             }
         }
     }
-
-    private var navigatorColumnVisibility: Binding<NavigationSplitViewVisibility> {
-        Binding(
-            get: { workspace.folderNavigator.isVisible ? .all : .detailOnly },
-            set: { visibility in
-                let visible = visibility != .detailOnly
-                guard workspace.folderNavigator.isVisible != visible else {
-                    return
-                }
-                workspace.folderNavigator.toggleVisibility(
-                    documentURL: workspace.selectedTab.fileURL
-                )
-            }
-        )
-    }
-
 }
 
 // MARK: - Tab bar

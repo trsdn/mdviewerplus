@@ -14,12 +14,14 @@ MDViewer+ 2.2.1 ships from one source tree in two editions:
 | Diagrams | — | Lazy offline Mermaid with svg-pan-zoom |
 
 Both editions use the same bundle identifier, application name, document
-associations, sandbox, and native `DocumentGroup` lifecycle. Installing one
+associations, sandbox, and in-window tab workspace. Installing one
 edition replaces the other. **Full is the recommended download.**
 
 ## Highlights
 
-- View, split, and edit modes with responsive live preview
+- View, split, and edit modes with responsive live preview, switchable from
+  the toolbar or `Cmd E`
+- Document tabs in one window, with `Cmd T`, `Cmd W`, and Open in New Tab
 - Bidirectional editor/preview scroll synchronization
 - Focus-aware Find: native `NSTextView` Find in the editor and `WKWebView.find`
   in the preview

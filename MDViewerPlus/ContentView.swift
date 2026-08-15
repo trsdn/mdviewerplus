@@ -243,6 +243,58 @@ struct ContentView: View {
         .onDisappear {
             folderWatcher.stop()
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                if isActive {
+                    Picker("Mode", selection: $viewMode) {
+                        Image(systemName: "eye")
+                            .accessibilityLabel("View")
+                            .tag(ViewMode.view)
+                        Image(systemName: "rectangle.split.2x1")
+                            .accessibilityLabel("Split")
+                            .tag(ViewMode.split)
+                        Image(systemName: "square.and.pencil")
+                            .accessibilityLabel("Edit")
+                            .tag(ViewMode.edit)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .help("View, Split, or Edit (⌘E)")
+                    .accessibilityIdentifier("viewModePicker")
+
+                    Button {
+                        presentQuickOpen()
+                    } label: {
+                        Image(systemName: "doc.text.magnifyingglass")
+                    }
+                    .help("Quick Open (⌘K)")
+                    .accessibilityLabel("Quick Open")
+                    .accessibilityIdentifier("quickOpen")
+                    .disabled(
+                        fileURL == nil
+                            || isNavigating
+                            || isRequestingResourceAccess
+                    )
+
+                    Button {
+                        isOutlinePresented = true
+                    } label: {
+                        Image(systemName: "list.bullet.indent")
+                    }
+                    .help("Document Outline (⇧⌘O)")
+                    .accessibilityLabel("Document Outline")
+                    .accessibilityIdentifier("documentOutline")
+                    .disabled(outlineEntries.isEmpty)
+                }
+            }
+        }
+        .onChange(of: viewMode) { mode in
+            switch mode {
+            case .view: activePane = .preview
+            case .edit: activePane = .editor
+            case .split: break
+            }
+        }
         .sheet(isPresented: $isQuickOpenPresented) {
             QuickOpenPalette(
                 items: quickOpenItems,

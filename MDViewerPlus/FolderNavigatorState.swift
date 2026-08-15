@@ -145,6 +145,9 @@ final class FolderNavigatorState: ObservableObject {
             of: documentURL,
             under: rootURL
         )
+        if let currentRelativePath {
+            selectedRelativePath = currentRelativePath
+        }
     }
 
     func restoreBestRoot(for documentURL: URL) async {

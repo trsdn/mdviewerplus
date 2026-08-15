@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.1
+
+- The Folder Navigator selection now follows the active tab, so the highlight
+  and the current-document marker no longer disagree after switching tabs.
+
 ## 2.2.0
 
 - Replaced the document-per-window model with an in-window tab workspace:

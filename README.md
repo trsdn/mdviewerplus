@@ -22,6 +22,8 @@ edition replaces the other. **Full is the recommended download.**
 - View, split, and edit modes with responsive live preview, switchable from
   the toolbar or `Cmd E`
 - Document tabs in one window, with `Cmd T`, `Cmd W`, and Open in New Tab
+- Drag and drop from Finder: Markdown files open as tabs, a dropped folder
+  becomes the Folder Navigator root
 - Bidirectional editor/preview scroll synchronization
 - Focus-aware Find: native `NSTextView` Find in the editor and `WKWebView.find`
   in the preview

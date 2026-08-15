@@ -291,6 +291,43 @@ final class FolderAccessStore {
         return access
     }
 
+    func adoptedAccess(forDroppedFolder folderURL: URL) throws -> FolderAccessLease {
+        let values = try folderURL.resourceValues(forKeys: [
+            .isSymbolicLinkKey, .isDirectoryKey
+        ])
+        guard values.isSymbolicLink != true else {
+            throw FolderAccessError.symbolicLink
+        }
+        guard values.isDirectory == true else {
+            throw FolderAccessError.wrongFolder
+        }
+
+        let canonical = FolderNavigatorPath.canonical(folderURL)
+#if DEBUG
+        if UITestHooks.authorizedFolderURL != nil {
+            return FolderAccessLease(testingRootURL: canonical)
+        }
+#endif
+        let bookmark = try folderURL.bookmarkData(
+            options: .withSecurityScope,
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        try save(bookmark: bookmark, for: canonical)
+
+        var isStale = false
+        let scopedURL = try URL(
+            resolvingBookmarkData: bookmark,
+            options: [.withSecurityScope, .withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        )
+        return try FolderAccessLease(
+            securityScopedURL: scopedURL,
+            rootURL: canonical
+        )
+    }
+
     private func canonicalFolder(for documentURL: URL) -> URL {
         documentURL
             .deletingLastPathComponent()

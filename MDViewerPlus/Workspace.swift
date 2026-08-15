@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// A single document that is displayed in one tab of a window.
 @MainActor
@@ -224,6 +223,62 @@ final class Workspace: ObservableObject {
         let tab = DocumentTab()
         tabs.append(tab)
         return tab
+    }
+
+    // MARK: - Drag and drop
+
+    func openDropped(_ urls: [URL]) {
+        let manager = FileManager.default
+        let classified = DroppedItems.classify(urls) { url in
+            var isDirectory: ObjCBool = false
+            let exists = manager.fileExists(
+                atPath: url.path,
+                isDirectory: &isDirectory
+            )
+            return exists ? isDirectory.boolValue : nil
+        }
+
+        if let folder = classified.folders.first {
+            adoptDroppedFolder(folder)
+        }
+
+        for (index, url) in classified.markdownFiles.enumerated() {
+            openReportingErrors(
+                url,
+                disposition: index == 0 && classified.folders.isEmpty
+                    ? .replaceCurrentTab
+                    : .newTab
+            )
+        }
+
+        guard classified.markdownFiles.isEmpty, classified.folders.isEmpty
+        else { return }
+
+        alert = .error(
+            title: "Couldn’t Open Dropped Items",
+            message: DroppedItems.rejectionMessage(
+                for: classified.unsupported
+            )
+        )
+    }
+
+    private func adoptDroppedFolder(_ folderURL: URL) {
+        do {
+            let access = try FolderAccessStore.shared
+                .adoptedAccess(forDroppedFolder: folderURL)
+            folderNavigator.isVisible = true
+            Task { @MainActor in
+                await folderNavigator.setRoot(
+                    access,
+                    documentURL: selectedTab.fileURL ?? access.rootURL
+                )
+            }
+        } catch {
+            alert = .error(
+                title: "Couldn’t Open Folder",
+                message: error.localizedDescription
+            )
+        }
     }
 
     // MARK: - Folder navigator

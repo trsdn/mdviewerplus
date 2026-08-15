@@ -167,6 +167,30 @@ final class WebThemeApplicationState {
     }
 }
 
+/// A web view that never acts as a drag destination so window-level file drops
+/// reach the SwiftUI `onDrop` handler instead of navigating the preview.
+final class DropPassthroughWebView: WKWebView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        Self.unregisterDraggedTypes(in: self)
+    }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { [] }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation { [] }
+
+    override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool { false }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool { false }
+
+    private static func unregisterDraggedTypes(in view: NSView) {
+        view.unregisterDraggedTypes()
+        for subview in view.subviews {
+            unregisterDraggedTypes(in: subview)
+        }
+    }
+}
+
 struct MarkdownWebView: NSViewRepresentable {
     let text: String
     let fileURL: URL?
@@ -239,7 +263,7 @@ struct MarkdownWebView: NSViewRepresentable {
             )
         )
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = DropPassthroughWebView(frame: .zero, configuration: config)
         webView.setAccessibilityIdentifier("markdownPreview")
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator

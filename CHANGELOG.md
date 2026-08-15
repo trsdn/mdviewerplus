@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added drag and drop from Finder: dropping Markdown files opens them as tabs
+  (the first one reuses the current tab), dropping a folder makes it the Folder
+  Navigator root, and dropping unsupported items explains why they were
+  rejected.
+- Added toolbar controls for the view mode, Quick Open, and the document
+  outline.
+
 ## 2.2.1
 
 - The Folder Navigator selection now follows the active tab, so the highlight

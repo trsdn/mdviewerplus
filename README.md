@@ -2,7 +2,7 @@
 
 A native, offline macOS Markdown editor and viewer with live preview.
 
-MDViewer+ 2.2.1 ships from one source tree in two editions:
+MDViewer+ 2.3.0 ships from one source tree in two editions:
 
 | | Lite | Full |
 | --- | --- | --- |

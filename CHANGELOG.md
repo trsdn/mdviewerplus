@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.3.0
 
 - Added drag and drop from Finder: dropping Markdown files opens them as tabs
   (the first one reuses the current tab), dropping a folder makes it the Folder
